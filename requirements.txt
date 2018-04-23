@@ -1,0 +1,4 @@
+click
+fedmsg[all]
+kombu
+pytoml
