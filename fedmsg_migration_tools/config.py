@@ -14,7 +14,11 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 """This module is responsible for loading the application configuration."""
+
+from __future__ import unicode_literals
+
 import logging
 import logging.config
 import os
@@ -27,21 +31,21 @@ _log = logging.getLogger(__name__)
 
 #: A dictionary of application configuration defaults.
 DEFAULTS = dict(
-    amqp_url=u'amqp://',
+    amqp_url='amqp://',
     amqp_to_zmq={
         'queue_name': 'fedmsg_zmq_bridge',
         'bindings': [
             {
-                'exchange': u'amq.topic',
-                'routing_key': u'#',
+                'exchange': 'amq.topic',
+                'routing_key': '#',
                 'arguments': {},
             }
         ],
         'publish_endpoint': 'tcp://*:9940',
     },
     zmq_to_amqp={
-        'exchange': u'zmq.topic',
-        'topics': [u''],
+        'exchange': 'zmq.topic',
+        'topics': [''],
         'zmq_endpoints': [],
     },
     log_config={
