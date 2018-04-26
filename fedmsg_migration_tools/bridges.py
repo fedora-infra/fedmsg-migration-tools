@@ -67,7 +67,7 @@ def zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics):
                 producer.publish(body, routing_key=topic, retry=True, retry_policy=retry_policy)
             except Exception as e:
                 _log.exception('Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
-                               body, topic, exchange)
+                               body, exchange, topic, e)
 
 
 def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
