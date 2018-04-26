@@ -6,6 +6,10 @@ amqp_url = "amqp://"
     # 9940 on all available interfaces.
     publish_endpoint = "tcp://*:9940"
 
+    # The queue name where incoming AMQP messages will be stored before
+    # emission on ZeroMQ.
+    queue_name = fedmsg_zmq_bridge
+
     # A list of bindings to create; each binding should have an exchange and
     # and routing key or additional arguments. See documentation on AMQP
     # exchanges for more information.
