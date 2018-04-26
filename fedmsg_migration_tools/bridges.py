@@ -14,14 +14,10 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-from __future__ import absolute_import
 
 import logging
-import logging.config
 
-from kombu import Connection, Exchange, Queue
-from kombu.mixins import ConsumerMixin
-from kombu.pools import connections
+import pika
 import zmq
 
 _log = logging.getLogger(__name__)
@@ -41,33 +37,34 @@ def zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics):
         sub_socket.setsockopt(zmq.SUBSCRIBE, topic)
         _log.info('Configuring ZeroMQ subscription socket with the "%s" topic', topic)
 
-    retry_policy = {
-        'interval_start': 0,
-        'interval_step': 2,
-        'interval_max': 15,
-        'max_retries': 60,
-    }
-    with connections[Connection(amqp_url)].acquire(block=True, timeout=60) as conn:
-        exchange = Exchange(name=exchange, type='topic', durable=True)
-        producer = conn.Producer(auto_declare=True, exchange=exchange)
-        _log.info('Successfully connected to the AMQP broker; publishing to the "%s" '
-                  'exchange', exchange.name)
-        while True:
-            try:
-                topic, body = sub_socket.recv_multipart()
-            except zmq.ZMQError as e:
-                _log.error('Failed to receive message from subscription socket: %s', str(e))
-                continue
-            except ValueError as e:
-                _log.error('Unable to unpack message from pair socket: %s', e)
-                continue
+    connection = pika.BlockingConnection(pika.URLParameters(amqp_url))
+    channel = connection.channel()
+    channel.exchange_declare(exchange=exchange, exchange_type='topic', durable=True)
+    while True:
+        try:
+            topic, body = sub_socket.recv_multipart()
+        except zmq.ZMQError as e:
+            _log.error('Failed to receive message from subscription socket: %s', e)
+            continue
+        except ValueError as e:
+            _log.error('Unable to unpack message from pair socket: %s', e)
+            continue
 
-            _log.debug('Publishing %r to %r', body, topic)
-            try:
-                producer.publish(body, routing_key=topic, retry=True, retry_policy=retry_policy)
-            except Exception as e:
-                _log.exception('Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
-                               body, exchange, topic, e)
+        _log.debug('Publishing %r to %r', body, topic)
+        try:
+            channel.basic_publish(
+                exchange=exchange,
+                routing_key=topic,
+                body=body,
+                properties=pika.BasicProperties(
+                    content_type='application/json',
+                    delivery_mode=1,
+                )
+            )
+        except Exception as e:
+            _log.exception('Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
+                           body, exchange, topic, e)
+    connection.close()
 
 
 def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
@@ -80,87 +77,42 @@ def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
         bindings (dict): A list of dictionaries with "exchange" and "routing_key" keys.
         publish_endpoint: The ZeroMQ socket to bind to.
     """
-    consumer = AmqpConsumer(amqp_url, queue_name, bindings, publish_endpoint)
-    consumer.run()
+    # ZMQ
+    context = zmq.Context.instance()
+    pub_socket = context.socket(zmq.PUB)
+    pub_socket.bind(publish_endpoint)
+    _log.info('Bound to %s for ZeroMQ publication', publish_endpoint)
 
+    # AMQP
+    connection = pika.BlockingConnection(pika.URLParameters(amqp_url))
+    channel = connection.channel()
+    channel.queue_declare(queue=queue_name, durable=True)
+    _log.info('AMQP consumer ready on the %r queue', queue_name)
+    for bind in bindings:
+        channel.exchange_declare(
+            exchange=bind['exchange'],
+            exchange_type='topic',
+            durable=True,
+        )
+        channel.queue_bind(
+            queue=queue_name,
+            exchange=bind['exchange'],
+            routing_key=bind['routing_key'],
+            arguments=bind['arguments'],
+        )
+        _log.info('Binding "%s" to %r', queue_name, bind)
 
-class AmqpConsumer(ConsumerMixin):
-    """Consumes messages from AMQP and publishes them to ZeroMQ."""
-
-    def __init__(self, amqp_url, queue_name, bindings, publish_endpoint):
-        self.connection = Connection(amqp_url)
-        self.bindings = bindings
-        self.queues = [Queue(queue_name)]
-        context = zmq.Context.instance()
-        self.publish_endpoint = publish_endpoint
-        self.pub_socket = context.socket(zmq.PUB)
-        self.pub_socket.bind(publish_endpoint)
-        _log.info('Bound to %s for ZeroMQ publication', publish_endpoint)
-
-    def get_consumers(self, consumer_class, channel):
-        """
-        Get the list of Consumers this class uses.
-
-        This is part of the :class:`kombu.mixins.ConsumerMixin` API.
-
-        Args:
-            consumer_class (class): The class to use when creating consumers.
-            channel (kombu.Channel): Unused.
-        """
-        return [
-            consumer_class(self.queues, callbacks=[self.on_message], accept=['json']),
-        ]
-
-    def on_consume_ready(self, connection, channel, consumers, **kwargs):  # pragma: no cover
-        """
-        Implement the ConsumerMixin API.
-
-        Args:
-            connection (kombu.Connection): Unused.
-            channel (kombu.Channel): Unused.
-            consumers (list): List of :class:`kombu.Consumer`. Unused.
-        """
-        _log.info('AMQP consumer ready on the %r queues', self.queues)
-        for consumer in consumers:
-            for queue in consumer.queues:
-                for bind in self.bindings:
-                    queue.bind_to(
-                        exchange=bind['exchange'], routing_key=bind['routing_key'],
-                        arguments=bind['arguments'])
-                    _log.info('Binding "%s" to %r', queue.name, bind)
-        super(AmqpConsumer, self).on_consume_ready(connection, channel, consumers, **kwargs)
-
-    def on_consume_end(self, connection, channel):  # pragma: no cover
-        """
-        Implement the ConsumerMixin API.
-
-        Args:
-            connection (kombu.Connection): Unused.
-            channel (kombu.Channel): Unused.
-        """
-        _log.info('Successfully canceled the AMQP consumer')
-        super(AmqpConsumer, self).on_consume_end(connection, channel)
-
-    def on_message(self, body, message):
-        """
-        The callback for the Consumer, called when a message is received.
-
-        As this consumer must run outside the reactor thread (since it uses blocking APIs)
-        this simply uses the Twisted API to call the delivery service's message handler inside
-        the reactor thread.
-
-        Args:
-            body (dict): The decoded message body.
-            message (kombu.Message): The Kombu message object.
-        """
+    # Start relaying
+    def on_message(ch, method, properties, body):
         try:
-            topic = message.delivery_info['routing_key']
+            topic = method.routing_key
             _log.debug('Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
-                       topic, self.publish_endpoint)
-
-            zmq_message = [topic.encode('utf-8'), body.encode('utf-8')]
-            self.pub_socket.send_multipart(zmq_message)
-            message.ack()
+                       topic, publish_endpoint)
+            zmq_message = [topic.encode("utf-8"), body]
+            pub_socket.send_multipart(zmq_message)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
         except zmq.ZMQError as e:
             _log.error('Message delivery failed: %r', e)
-            message.requeue()
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+    channel.basic_consume(on_message, queue=queue_name)
+    channel.start_consuming()
