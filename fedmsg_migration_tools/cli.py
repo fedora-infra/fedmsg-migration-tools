@@ -27,7 +27,11 @@ import logging.config
 import click
 import zmq
 
-from . import config, bridges as bridges_module
+from . import (
+    config,
+    bridges as bridges_module,
+    verify_missing as verify_missing_module,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -80,5 +84,25 @@ def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
         bridges_module.amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint)
     except zmq.error.ZMQError as e:
         _log.error(str(e))
+    except Exception:
+        _log.exception('An unexpected error occurred, please file a bug report')
+
+
+@cli.command()
+@click.option('--zmq-endpoint', multiple=True, help='ZMQ socket where messages are published')
+@click.option('--exchange', multiple=True, help="AMQP exchanges to bind to")
+@click.option('--amqp-url')
+def verify_missing(amqp_url, exchange, zmq_endpoint):
+    """Check that all messages go through AMQP and ZeroMQ."""
+    amqp_url = amqp_url or config.conf['amqp_url']
+    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
+    exchanges = exchange
+    if not exchanges:
+        exchanges = [b["exchange"] for b in config.conf['amqp_to_zmq']['bindings']]
+        exchanges.append(config.conf['zmq_to_amqp']['exchange'])
+    try:
+        verify_missing_module.main(amqp_url, zmq_endpoints, exchanges)
+    except zmq.error.ZMQError as e:
+        _log.exception(e)
     except Exception:
         _log.exception('An unexpected error occurred, please file a bug report')
