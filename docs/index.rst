@@ -17,3 +17,4 @@ Migration Documentation
    :maxdepth: 2
 
    migration/overview
+   migration/performance
