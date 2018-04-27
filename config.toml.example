@@ -8,7 +8,7 @@ amqp_url = "amqp://"
 
     # The queue name where incoming AMQP messages will be stored before
     # emission on ZeroMQ.
-    queue_name = fedmsg_zmq_bridge
+    queue_name = "fedmsg_zmq_bridge"
 
     # A list of bindings to create; each binding should have an exchange and
     # and routing key or additional arguments. See documentation on AMQP
