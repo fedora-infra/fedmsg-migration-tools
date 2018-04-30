@@ -18,3 +18,4 @@ Migration Documentation
 
    migration/overview
    migration/performance
+   migration/reliability
