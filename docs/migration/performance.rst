@@ -137,5 +137,26 @@ the Pine64.
    publishing.
 
 
+Three Node Cluster
+~~~~~~~~~~~~~~~~~~
+
+All numbers were obtained using a three node RabbitMQ 3.6.15 cluster running
+on a Pine64 LTS, a Raspberry Pi 3B+, and a Minnowboard Turbot Dual-Core. The
+publisher used Pika as the client with a blocking (synchronous) connection.
+The queue was mirrored to all three nodes in the cluster.
+
+Durable Publishing
+^^^^^^^^^^^^^^^^^^
+
+With no consumers attached to the queue, message throughput peaked at around
+800 messages per second. After around 10 minutes, the queue accumulated 383,428
+messages.
+
+.. figure:: OverviewClusterDurableQueue.png
+   :align: center
+   :alt: Figure of performance while publishing to a queue mirrored across three nodes.
+
+   Publishing to a queue mirrored across 3 nodes for 10 minutes.
+
 .. _datagrepper: https://apps.fedoraproject.org/datagrepper/
 .. _old fedmsg documentation: https://fedmsg.readthedocs.io/en/0.18/overview/#mq-or-going-for-broke-rless
