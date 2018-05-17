@@ -15,15 +15,17 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+import json
 import logging
 
-import pika
+import fedora_messaging.api
+import fedora_messaging.message
 import zmq
 
 _log = logging.getLogger(__name__)
 
 
-def zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics):
+def zmq_to_amqp(exchange, zmq_endpoints, topics):
     """
     Connect to a set of ZeroMQ PUB sockets and re-publish the messages to an AMQP
     exchange.
@@ -37,9 +39,6 @@ def zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics):
         sub_socket.setsockopt(zmq.SUBSCRIBE, topic)
         _log.info('Configuring ZeroMQ subscription socket with the "%s" topic', topic)
 
-    connection = pika.BlockingConnection(pika.URLParameters(amqp_url))
-    channel = connection.channel()
-    channel.exchange_declare(exchange=exchange, exchange_type='topic', durable=True)
     while True:
         try:
             topic, body = sub_socket.recv_multipart()
@@ -50,29 +49,22 @@ def zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics):
             _log.error('Unable to unpack message from pair socket: %s', e)
             continue
 
+        message = fedora_messaging.message.Message(
+            body=json.loads(body), topic=topic.decode("utf-8"),
+        )
         _log.debug('Publishing %r to %r', body, topic)
         try:
-            channel.basic_publish(
-                exchange=exchange,
-                routing_key=topic,
-                body=body,
-                properties=pika.BasicProperties(
-                    content_type='application/json',
-                    delivery_mode=1,
-                )
-            )
+            fedora_messaging.api.publish(message, exchange=exchange)
         except Exception as e:
             _log.exception('Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
                            body, exchange, topic, e)
-    connection.close()
 
 
-def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
+def amqp_to_zmq(queue_name, bindings, publish_endpoint):
     """
     Publish messages from an AMQP queue to ZeroMQ.
 
     Args:
-        amqp_url (str): The URL of the AMQP server to connect to.
         queue_name (str): The queue name to use. If it doesn't exist it will be created.
         bindings (dict): A list of dictionaries with "exchange" and "routing_key" keys.
         publish_endpoint: The ZeroMQ socket to bind to.
@@ -84,25 +76,6 @@ def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
     _log.info('Bound to %s for ZeroMQ publication', publish_endpoint)
 
     # AMQP
-    connection = pika.BlockingConnection(pika.URLParameters(amqp_url))
-    channel = connection.channel()
-    channel.queue_declare(queue=queue_name, durable=True)
-    _log.info('AMQP consumer ready on the %r queue', queue_name)
-    for bind in bindings:
-        channel.exchange_declare(
-            exchange=bind['exchange'],
-            exchange_type='topic',
-            durable=True,
-        )
-        channel.queue_bind(
-            queue=queue_name,
-            exchange=bind['exchange'],
-            routing_key=bind['routing_key'],
-            arguments=bind['arguments'],
-        )
-        _log.info('Binding "%s" to %r', queue_name, bind)
-
-    # Start relaying
     def on_message(ch, method, properties, body):
         try:
             topic = method.routing_key
@@ -114,5 +87,4 @@ def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
         except zmq.ZMQError as e:
             _log.error('Message delivery failed: %r', e)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-    channel.basic_consume(on_message, queue=queue_name)
-    channel.start_consuming()
+    fedora_messaging.api.consume(on_message, bindings)

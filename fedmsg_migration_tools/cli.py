@@ -27,8 +27,8 @@ import logging.config
 import click
 import zmq
 
+from fedora_messaging import config
 from . import (
-    config,
     bridges as bridges_module,
     verify_missing as verify_missing_module,
 )
@@ -55,33 +55,35 @@ def cli(conf):
 @click.option('--topic', multiple=True)
 @click.option('--zmq-endpoint', multiple=True, help='A ZMQ socket to subscribe to')
 @click.option('--exchange')
-@click.option('--amqp-url')
-def zmq_to_amqp(amqp_url, exchange, zmq_endpoint, topic):
+def zmq_to_amqp(exchange, zmq_endpoint, topic):
     """Bridge ZeroMQ messages to an AMQP exchange."""
-    amqp_url = amqp_url or config.conf['amqp_url']
     topics = topic or config.conf['zmq_to_amqp']['topics']
     exchange = exchange or config.conf['zmq_to_amqp']['exchange']
     zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
     topics = [t.encode('utf-8') for t in topics]
     try:
-        bridges_module.zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics)
+        bridges_module.zmq_to_amqp(exchange, zmq_endpoints, topics)
     except Exception:
         _log.exception('An unexpected error occurred, please file a bug report')
 
 
 @cli.command()
 @click.option('--publish-endpoint')
-@click.option('--bindings')
+@click.option('--exchange')
 @click.option('--queue-name')
-@click.option('--amqp-url')
-def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
+def amqp_to_zmq(queue_name, exchange, publish_endpoint):
     """Bridge an AMQP queue to a ZeroMQ PUB socket."""
-    amqp_url = amqp_url or config.conf['amqp_url']
-    queue_name = queue_name or config.conf['amqp_to_zmq']['queue_name']
-    bindings = bindings or config.conf['amqp_to_zmq']['bindings']
+    if exchange and queue_name:
+        bindings = [{
+            "exchange": exchange,
+            "queue_name": queue_name,
+            "routing_key": "#",
+        }]
+    else:
+        bindings = config.conf['amqp_to_zmq']['bindings']
     publish_endpoint = publish_endpoint or config.conf['amqp_to_zmq']['publish_endpoint']
     try:
-        bridges_module.amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint)
+        bridges_module.amqp_to_zmq(bindings, publish_endpoint)
     except zmq.error.ZMQError as e:
         _log.error(str(e))
     except Exception:
@@ -89,19 +91,12 @@ def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
 
 
 @cli.command()
-@click.option('--zmq-endpoint', multiple=True, help='ZMQ socket where messages are published')
-@click.option('--exchange', multiple=True, help="AMQP exchanges to bind to")
-@click.option('--amqp-url')
-def verify_missing(amqp_url, exchange, zmq_endpoint):
+def verify_missing():
     """Check that all messages go through AMQP and ZeroMQ."""
-    amqp_url = amqp_url or config.conf['amqp_url']
-    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
-    exchanges = exchange
-    if not exchanges:
-        exchanges = [b["exchange"] for b in config.conf['amqp_to_zmq']['bindings']]
-        exchanges.append(config.conf['zmq_to_amqp']['exchange'])
+    from twisted.logger import STDLibLogObserver, globalLogPublisher
+    globalLogPublisher.addObserver(STDLibLogObserver(name="verify_missing"))
     try:
-        verify_missing_module.main(amqp_url, zmq_endpoints, exchanges)
+        verify_missing_module.main()
     except zmq.error.ZMQError as e:
         _log.exception(e)
     except Exception:

@@ -1,117 +1,131 @@
-import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
 
-import zmq
-import zmq.asyncio
-from .amqp import Connection, Channel, Exchange, Queue, Consumer
+from fedora_messaging import config
+from fedora_messaging.twisted.producer import MessageProducer
+
+from twisted.internet import defer, reactor, task
+from twisted.application import service
+from twisted.logger import Logger
+from txzmq import (
+    ZmqEndpoint, ZmqEndpointType, ZmqFactory, ZmqSubConnection,
+)
+
 
 _log = logging.getLogger(__name__)
+_txlog = Logger()
 
 
-class AmqpConsumer:
+class MasterService(service.MultiService):
+    """Multi service that stops the reactor with itself."""
 
-    def __init__(self, store, url, exchanges):
+    def stopService(self):
+        d = super(MasterService, self).stopService()
+        d.addCallback(lambda _: reactor.stop())
+        return d
+
+
+class AmqpConsumer(service.Service):
+
+    QUEUE_NAME = "verify_missing"
+
+    def __init__(self, store):
         self.store = store
-        self.url = url
-        self.exchanges = exchanges
-        self._connection = None
-        self._channel = None
-        self._consumer = None
+        self.producer = MessageProducer(
+            self.on_message, self._get_bindings())
 
-    @asyncio.coroutine
-    def run(self):
-        self._connection = Connection(self.url)
-        yield from self._connection.connect()
-        self._channel = Channel(self._connection)
-        yield from self._channel.open()
-        queue = Queue(self._channel, args=dict(exclusive=True, auto_delete=True))
-        yield from queue.declare()
-        for exchange_name in self.exchanges:
-            exchange = Exchange(self._channel, exchange_name, "topic")
-            yield from exchange.declare()
-            yield from queue.bind(exchange, routing_key="#")
-        self._consumer = Consumer(self._channel, queue, self.on_message)
-        self._consumer.start()
-        _log.info('AMQP consumer is ready')
+    def _get_bindings(self):
+        exchanges = [b["exchange"] for b in config.conf['amqp_to_zmq']['bindings']]
+        exchanges.append(config.conf['zmq_to_amqp']['exchange'])
+        return [
+            dict(
+                exchange=exchange,
+                routing_key="#",
+                queue_name=self.QUEUE_NAME,
+                # We don't want to store messages when not running.
+                queue_auto_delete=True,
+            )
+            for exchange in exchanges
+        ]
 
-    @asyncio.coroutine
-    def stop(self):
-        if not self._consumer:
-            return
-        yield from self._consumer.stop()
-        yield from self._channel.close()
-        yield from self._connection.close()
-
-    def on_message(self, ch, method, properties, body):
-        topic = method.routing_key
-        _log.debug('Received message on "%s"', topic)
+    @defer.inlineCallbacks
+    def startService(self):
         try:
-            msg = json.loads(body)
-        except ValueError as e:
-            _log.warning("Invalid message: %r", body)
-            return
-        _log.debug('Received from AMQP on topic %s: %s', topic, msg["msg_id"])
+            yield self.producer.resumeProducing()
+        except Exception:
+            _txlog.failure("Error in the AMQP consumer")
+        # Stop when the producer stops (on error probably).
+        self.producer.producing.addCallback(
+            lambda x: self.parent.stopService()
+        )
+
+    def on_message(self, message):
+        _log.debug('Received from AMQP on topic %s: %s', message.topic, message.body["msg_id"])
+        self.store[message.body["msg_id"]] = (
+            datetime.utcnow(),
+            message.body,
+        )
+
+    def stopService(self):
+        _log.debug("Stopping AmqpConsumer")
+        return self.producer.stopProducing()
+
+
+class ZmqConsumer(service.Service):
+
+    def __init__(self, store):
+        self.store = store
+        self.endpoints = config.conf['zmq_to_amqp']['zmq_endpoints']
+        self._socket = None
+        self._factory = None
+
+    def startService(self):
+        self._factory = ZmqFactory()
+        endpoints = [
+            ZmqEndpoint(ZmqEndpointType.connect, endpoint)
+            for endpoint in self.endpoints
+        ]
+        _log.debug('Configuring ZeroMQ subscription socket')
+        for endpoint in endpoints:
+            s = ZmqSubConnection(self._factory, endpoint)
+            s.subscribe(b"")
+            s.gotMessage = self.on_message
+        _log.info('ZeroMQ consumer is ready')
+
+    def on_message(self, body, topic):
+        topic = topic.decode("utf-8")
+        msg = json.loads(body)
+        _log.debug('Received from ZeroMQ on topic %s: %s',
+                   topic, msg["msg_id"])
         self.store[msg["msg_id"]] = (
             datetime.utcnow(),
             msg,
         )
 
-
-class ZmqConsumer:
-
-    def __init__(self, store, endpoints, topics):
-        self.store = store
-        self.endpoints = endpoints
-        self.topics = topics
-        self._socket = None
-
-    @asyncio.coroutine
-    def run(self):
-        context = zmq.asyncio.Context()
-        self._socket = context.socket(zmq.SUB)
-        for endpoint in self.endpoints:
-            self._socket.connect(endpoint)
-            _log.debug('Connecting ZeroMQ subscription socket to %s', endpoint)
-        for topic in self.topics:
-            self._socket.setsockopt(zmq.SUBSCRIBE, topic.encode("utf-8"))
-            _log.debug('Configuring ZeroMQ subscription socket with the "%s" topic', topic)
-        _log.info('ZeroMQ consumer is ready')
-        while True:
-            try:
-                topic, body = yield from self._socket.recv_multipart()
-            except zmq.ZMQError as e:
-                _log.error('Failed to receive message from subscription socket: %s', e)
-                continue
-            except ValueError as e:
-                _log.error('Unable to unpack message from pair socket: %s', e)
-                continue
-            msg = json.loads(body)
-            _log.debug('Received from ZeroMQ on topic %s: %s',
-                       topic.decode("utf-8"), msg["msg_id"])
-            self.store[msg["msg_id"]] = (
-                datetime.utcnow(),
-                msg,
-            )
-
-    @asyncio.coroutine
-    def stop(self):
-        self._socket.close()
+    def stopService(self):
+        _log.debug("Stopping ZmqConsumer")
+        self._factory.shutdown()
 
 
-class Comparator:
+class Comparator(service.Service):
 
     MATCH_WINDOW = 20
 
-    def __init__(self, loop, amqp_store, zmq_store):
-        self.loop = loop
+    def __init__(self, amqp_store, zmq_store):
         self.amqp_store = amqp_store
         self.zmq_store = zmq_store
+        self._rm_loop = task.LoopingCall(self.remove_matching)
+        self._cm_loop = task.LoopingCall(self.check_missing)
 
-    def run(self):
-        self.remove_matching()
-        self.check_missing()
+    def startService(self):
+        self._rm_loop.start(1)
+        self._cm_loop.start(10)
+
+    def stopService(self):
+        _log.debug("Stopping Comparator")
+        self._rm_loop.stop()
+        self._cm_loop.stop()
 
     def remove_matching(self):
         _log.debug("Checking for matching messages (%i, %i)",
@@ -120,13 +134,11 @@ class Comparator:
             if msg_id in self.zmq_store:
                 del self.amqp_store[msg_id]
                 del self.zmq_store[msg_id]
-        return self.loop.call_later(1, self.remove_matching)
 
     def check_missing(self):
         _log.debug("Checking for missing messages")
         self._check_store(self.amqp_store, "AMQP")
         self._check_store(self.zmq_store, "ZeroMQ")
-        return self.loop.call_later(10, self.check_missing)
 
     def _check_store(self, store, source_name):
         threshold = datetime.utcnow() - timedelta(seconds=self.MATCH_WINDOW)
@@ -138,26 +150,19 @@ class Comparator:
                 del store[msg_id]
 
 
-def main(amqp_url, zmq_endpoints, exchanges):
-    loop = asyncio.get_event_loop()
-    loop.set_debug(True)
+def main():
     amqp_store = {}
     zmq_store = {}
-    comparator = Comparator(loop, amqp_store, zmq_store)
-    comparator.run()
-    zmq_consumer = ZmqConsumer(
-        zmq_store, zmq_endpoints, [""])
-    asyncio.ensure_future(zmq_consumer.run())
-    amqp_consumer = AmqpConsumer(amqp_store, amqp_url, exchanges)
-    asyncio.ensure_future(amqp_consumer.run())
+    verify_service = MasterService()
+    comparator = Comparator(amqp_store, zmq_store)
+    comparator.setServiceParent(verify_service)
+    zmq_consumer = ZmqConsumer(zmq_store)
+    zmq_consumer.setServiceParent(verify_service)
+    amqp_consumer = AmqpConsumer(amqp_store)
+    amqp_consumer.setServiceParent(verify_service)
+    verify_service.startService()
     try:
-        loop.run_forever()
+        reactor.run()
     except KeyboardInterrupt:
-        stop_future = asyncio.gather(
-            amqp_consumer.stop(),
-            zmq_consumer.stop(),
-        )
-        stop_future.add_done_callback(lambda f: loop.stop())
-        loop.run_forever()
-    finally:
-        loop.close()
+        verify_service.stopService()
+        reactor.run()
