@@ -33,6 +33,12 @@ from . import (
     verify_missing as verify_missing_module,
 )
 
+try:
+    from twisted import logger as tw_logger
+except ImportError:
+    tw_logger = None
+
+
 _log = logging.getLogger(__name__)
 
 
@@ -93,8 +99,13 @@ def amqp_to_zmq(queue_name, exchange, publish_endpoint):
 @cli.command()
 def verify_missing():
     """Check that all messages go through AMQP and ZeroMQ."""
-    from twisted.logger import STDLibLogObserver, globalLogPublisher
-    globalLogPublisher.addObserver(STDLibLogObserver(name="verify_missing"))
+    if tw_logger is None:
+        raise click.exceptions.UsageError(
+            "You need to install Twisted to use this command."
+        )
+    tw_logger.globalLogPublisher.addObserver(
+        tw_logger.STDLibLogObserver(name="verify_missing")
+    )
     try:
         verify_missing_module.main()
     except zmq.error.ZMQError as e:
