@@ -32,17 +32,6 @@ _log = logging.getLogger(__name__)
 
 #: A dictionary of application configuration defaults.
 DEFAULTS = dict(
-    amqp_to_zmq={
-        'queue_name': 'fedmsg_zmq_bridge',
-        'bindings': [
-            {
-                'exchange': 'amq.topic',
-                'routing_key': '#',
-                'arguments': {},
-            }
-        ],
-        'publish_endpoint': 'tcp://*:9940',
-    },
     zmq_to_amqp={
         'exchange': 'zmq.topic',
         'topics': [''],

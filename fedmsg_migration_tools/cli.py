@@ -82,29 +82,6 @@ def zmq_to_amqp(exchange, zmq_endpoint, topic):
 
 
 @cli.command()
-@click.option('--publish-endpoint')
-@click.option('--exchange')
-@click.option('--queue-name')
-def amqp_to_zmq(queue_name, exchange, publish_endpoint):
-    """Bridge an AMQP queue to a ZeroMQ PUB socket."""
-    if exchange and queue_name:
-        bindings = [{
-            "exchange": exchange,
-            "queue_name": queue_name,
-            "routing_key": "#",
-        }]
-    else:
-        bindings = config.conf['amqp_to_zmq']['bindings']
-    publish_endpoint = publish_endpoint or config.conf['amqp_to_zmq']['publish_endpoint']
-    try:
-        bridges_module.amqp_to_zmq(bindings, publish_endpoint)
-    except zmq.error.ZMQError as e:
-        _log.error(str(e))
-    except Exception:
-        _log.exception('An unexpected error occurred, please file a bug report')
-
-
-@cli.command()
 @click.option('--zmq-endpoint', multiple=True, help='A ZMQ socket to subscribe to')
 def verify_missing(zmq_endpoint):
     """Check that all messages go through AMQP and ZeroMQ."""
