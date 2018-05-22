@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
-from fedora_messaging import config
+from fedmsg_migration_tools import config
 from fedora_messaging.twisted.producer import MessageProducer
 
 from twisted.internet import defer, reactor, task
@@ -28,8 +28,6 @@ class MasterService(service.MultiService):
 
 class AmqpConsumer(service.Service):
 
-    QUEUE_NAME = "verify_missing"
-
     def __init__(self, store):
         self.store = store
         self.producer = MessageProducer(
@@ -42,7 +40,7 @@ class AmqpConsumer(service.Service):
             dict(
                 exchange=exchange,
                 routing_key="#",
-                queue_name=self.QUEUE_NAME,
+                queue_name=config.conf['verify_missing']['queue_name'],
                 # We don't want to store messages when not running.
                 queue_auto_delete=True,
             )
@@ -74,9 +72,9 @@ class AmqpConsumer(service.Service):
 
 class ZmqConsumer(service.Service):
 
-    def __init__(self, store):
+    def __init__(self, store, zmq_endpoints):
         self.store = store
-        self.endpoints = config.conf['zmq_to_amqp']['zmq_endpoints']
+        self.endpoints = zmq_endpoints
         self._socket = None
         self._factory = None
 
@@ -153,13 +151,13 @@ class Comparator(service.Service):
                 del store[msg_id]
 
 
-def main():
+def main(zmq_endpoints):
     amqp_store = {}
     zmq_store = {}
     verify_service = MasterService()
     comparator = Comparator(amqp_store, zmq_store)
     comparator.setServiceParent(verify_service)
-    zmq_consumer = ZmqConsumer(zmq_store)
+    zmq_consumer = ZmqConsumer(zmq_store, zmq_endpoints)
     zmq_consumer.setServiceParent(verify_service)
     amqp_consumer = AmqpConsumer(amqp_store)
     amqp_consumer.setServiceParent(verify_service)

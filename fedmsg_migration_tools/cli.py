@@ -27,9 +27,9 @@ import logging.config
 import click
 import zmq
 
-from fedora_messaging import config
 from . import (
     bridges as bridges_module,
+    config,
     verify_missing as verify_missing_module,
 )
 
@@ -67,6 +67,14 @@ def zmq_to_amqp(exchange, zmq_endpoint, topic):
     exchange = exchange or config.conf['zmq_to_amqp']['exchange']
     zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
     topics = [t.encode('utf-8') for t in topics]
+
+    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
+    if not zmq_endpoints:
+        raise click.exceptions.UsageError(
+            'No ZeroMQ endpoints defined, please provide one or more endpoints '
+            'using the --zmq-endpoint flag or by setting endpoints in the '
+            '"zmq_to_amqp" section of your configuration.')
+
     try:
         bridges_module.zmq_to_amqp(exchange, zmq_endpoints, topics)
     except Exception:
@@ -97,7 +105,8 @@ def amqp_to_zmq(queue_name, exchange, publish_endpoint):
 
 
 @cli.command()
-def verify_missing():
+@click.option('--zmq-endpoint', multiple=True, help='A ZMQ socket to subscribe to')
+def verify_missing(zmq_endpoint):
     """Check that all messages go through AMQP and ZeroMQ."""
     if tw_logger is None:
         raise click.exceptions.UsageError(
@@ -106,8 +115,14 @@ def verify_missing():
     tw_logger.globalLogPublisher.addObserver(
         tw_logger.STDLibLogObserver(name="verify_missing")
     )
+    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
+    if not zmq_endpoints:
+        raise click.exceptions.UsageError(
+            'No ZeroMQ endpoints defined, please provide one or more endpoints '
+            'using the --zmq-endpoint flag or by setting endpoints in the '
+            '"zmq_to_amqp" section of your configuration.')
     try:
-        verify_missing_module.main()
+        verify_missing_module.main(zmq_endpoints)
     except zmq.error.ZMQError as e:
         _log.exception(e)
     except Exception:
