@@ -88,6 +88,7 @@ class ZmqConsumer(service.Service):
         ]
         _log.debug('Configuring ZeroMQ subscription socket')
         for endpoint in endpoints:
+            _log.info('Connecting to the %s ZeroMQ endpoint', endpoint)
             s = ZmqSubConnection(self._factory, endpoint)
             s.subscribe(b"")
             s.gotMessage = self.on_message
@@ -132,6 +133,8 @@ class Comparator(service.Service):
                    len(self.amqp_store), len(self.zmq_store))
         for msg_id in list(self.amqp_store.keys()):
             if msg_id in self.zmq_store:
+                _log.info('Successfully received message (id %s) via ZMQ and '
+                          'AMQP', msg_id)
                 del self.amqp_store[msg_id]
                 del self.zmq_store[msg_id]
 
