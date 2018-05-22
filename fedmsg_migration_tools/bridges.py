@@ -18,8 +18,9 @@
 import json
 import logging
 
-import fedora_messaging.api
-import fedora_messaging.message
+from fedora_messaging import api
+from fedora_messaging.message import Message
+from fedora_messaging.exceptions import Nack
 import zmq
 
 _log = logging.getLogger(__name__)
@@ -49,12 +50,12 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
             _log.error('Unable to unpack message from pair socket: %s', e)
             continue
 
-        message = fedora_messaging.message.Message(
+        message = Message(
             body=json.loads(body), topic=topic.decode("utf-8"),
         )
         _log.debug('Publishing %r to %r', body, topic)
         try:
-            fedora_messaging.api.publish(message, exchange=exchange)
+            api.publish(message, exchange=exchange)
         except Exception as e:
             _log.exception('Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
                            body, exchange, topic, e)
@@ -76,15 +77,13 @@ def amqp_to_zmq(queue_name, bindings, publish_endpoint):
     _log.info('Bound to %s for ZeroMQ publication', publish_endpoint)
 
     # AMQP
-    def on_message(ch, method, properties, body):
+    def on_message(message):
         try:
-            topic = method.routing_key
             _log.debug('Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
-                       topic, publish_endpoint)
-            zmq_message = [topic.encode("utf-8"), body]
+                       message.topic, publish_endpoint)
+            zmq_message = [message.topic.encode("utf-8"), message.body]
             pub_socket.send_multipart(zmq_message)
-            ch.basic_ack(delivery_tag=method.delivery_tag)
         except zmq.ZMQError as e:
             _log.error('Message delivery failed: %r', e)
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-    fedora_messaging.api.consume(on_message, bindings)
+            raise Nack()
+    api.consume(on_message, bindings)
