@@ -61,10 +61,9 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
                            body, exchange, topic, e)
 
 
-def amqp_to_zmq(message, sockets={}):
+class AmqpToZmq(object):
     """
     A fedora-messaging consumer that publishes messages it consumes to ZeroMQ.
-    Publish messages from an AMQP queue to ZeroMQ.
 
     A single configuration key is used from fedora-messaging's "consumer_config"
     key, "publish_endpoint", which should be a ZeroMQ socket. For example, to
@@ -75,24 +74,31 @@ def amqp_to_zmq(message, sockets={}):
         publish_endpoint = "tcp://127.0.0.1:9940"
 
     The default is to bind to all available interfaces on port 9940.
-
-    Args:
-        message (fedora_messaging.api.Message): The message from AMQP.
-        sockets (dict): The ZeroMQ sockets we publish to; note that this argument
-            is not provided by the caller, we just use it as permanent storage.
     """
-    publish_endpoint = fm_config.conf['consumer_config'].get('publish_endpoint', 'tcp://*:9940')
-    if publish_endpoint not in sockets:
-        context = zmq.Context.instance()
-        sockets[publish_endpoint] = context.socket(zmq.PUB)
-        sockets[publish_endpoint].bind(publish_endpoint)
-        _log.info('Bound to %s for ZeroMQ publication', publish_endpoint)
 
-    try:
-        _log.debug('Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
-                   message.topic, publish_endpoint)
-        zmq_message = [message.topic.encode("utf-8"), json.dumps(message.body).encode('utf-8')]
-        sockets[publish_endpoint].send_multipart(zmq_message)
-    except zmq.ZMQError as e:
-        _log.error('Message delivery failed: %r', e)
-        raise Nack()
+    def __init__(self):
+        try:
+            self.publish_endpoint = fm_config.conf['consumer_config']['publish_endpoint']
+        except KeyError:
+            self.publish_endpoint = 'tcp://*:9940'
+
+        context = zmq.Context.instance()
+        self.pub_socket = context.socket(zmq.PUB)
+        self.pub_socket.bind(self.publish_endpoint)
+        _log.info('Bound to %s for ZeroMQ publication', self.publish_endpoint)
+
+    def __call__(self, message):
+        """
+        Invoked when a message is received by the consumer.
+
+        Args:
+            message (fedora_messaging.api.Message): The message from AMQP.
+        """
+        try:
+            _log.debug('Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
+                       message.topic, self.publish_endpoint)
+            zmq_message = [message.topic.encode("utf-8"), json.dumps(message.body).encode('utf-8')]
+            self.pub_socket.send_multipart(zmq_message)
+        except zmq.ZMQError as e:
+            _log.error('Message delivery failed: %r', e)
+            raise Nack()
