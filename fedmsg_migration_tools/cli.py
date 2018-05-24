@@ -65,7 +65,6 @@ def zmq_to_amqp(exchange, zmq_endpoint, topic):
     """Bridge ZeroMQ messages to an AMQP exchange."""
     topics = topic or config.conf['zmq_to_amqp']['topics']
     exchange = exchange or config.conf['zmq_to_amqp']['exchange']
-    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
     topics = [t.encode('utf-8') for t in topics]
 
     zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
