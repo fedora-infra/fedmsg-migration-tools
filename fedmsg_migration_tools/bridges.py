@@ -18,9 +18,11 @@
 import json
 import logging
 
+from fedmsg import config as fedmsg_config
 from fedora_messaging import api, config as fm_config
 from fedora_messaging.message import Message
-from fedora_messaging.exceptions import Nack
+from fedora_messaging.exceptions import Nack, HaltConsumer
+import fedmsg
 import zmq
 
 _log = logging.getLogger(__name__)
@@ -53,6 +55,12 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
         message = Message(
             body=json.loads(body), topic=topic.decode("utf-8"),
         )
+
+        if (fedmsg_config.conf['validate_signatures'] and
+                not fedmsg.crypto.validate(message.body, **fedmsg_config.conf)):
+            _log.error('Message on topic %r failed validation', topic)
+            continue
+
         _log.debug('Publishing %r to %r', body, topic)
         try:
             api.publish(message, exchange=exchange)
@@ -74,6 +82,13 @@ class AmqpToZmq(object):
         publish_endpoint = "tcp://127.0.0.1:9940"
 
     The default is to bind to all available interfaces on port 9940.
+
+    Additionally, this consumer can optionally sign messages if they don't have
+    a signature already. This happens if the published message originates from
+    an AMQP publisher. The ZMQ -> AMQP bridge can be configured to validate
+    messages signatures before publishing, so we rely on the AMQP broker's
+    authentication and authorization to ensure the message is legitimate. To
+    enable this, set "sign_messages" to true in the fedmsg configuration.
     """
 
     def __init__(self):
@@ -94,6 +109,14 @@ class AmqpToZmq(object):
         Args:
             message (fedora_messaging.api.Message): The message from AMQP.
         """
+        if (('signature' not in message.body or 'certificate' not in message.body) and
+                fedmsg_config.conf['sign_messages']):
+            try:
+                message.body = fedmsg.crypto.sign(message.body, **fedmsg_config.conf)
+            except ValueError as e:
+                _log.error('Unable to sign message with fedmsg: %s', str(e))
+                raise HaltConsumer(exit_code=1, reason=e)
+
         try:
             _log.debug('Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
                        message.topic, self.publish_endpoint)
