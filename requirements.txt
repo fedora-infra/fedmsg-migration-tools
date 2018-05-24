@@ -1,4 +1,6 @@
 click
-fedmsg[all]
-kombu
+fedmsg[crypto_ng]
+twisted
+txzmq
+fedora-messaging
 pytoml

@@ -27,7 +27,17 @@ import logging.config
 import click
 import zmq
 
-from . import config, bridges as bridges_module
+from . import (
+    bridges as bridges_module,
+    config,
+    verify_missing as verify_missing_module,
+)
+
+try:
+    from twisted import logger as tw_logger
+except ImportError:
+    tw_logger = None
+
 
 _log = logging.getLogger(__name__)
 
@@ -51,34 +61,45 @@ def cli(conf):
 @click.option('--topic', multiple=True)
 @click.option('--zmq-endpoint', multiple=True, help='A ZMQ socket to subscribe to')
 @click.option('--exchange')
-@click.option('--amqp-url')
-def zmq_to_amqp(amqp_url, exchange, zmq_endpoint, topic):
+def zmq_to_amqp(exchange, zmq_endpoint, topic):
     """Bridge ZeroMQ messages to an AMQP exchange."""
-    amqp_url = amqp_url or config.conf['amqp_url']
     topics = topic or config.conf['zmq_to_amqp']['topics']
     exchange = exchange or config.conf['zmq_to_amqp']['exchange']
-    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
     topics = [t.encode('utf-8') for t in topics]
+
+    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
+    if not zmq_endpoints:
+        raise click.exceptions.UsageError(
+            'No ZeroMQ endpoints defined, please provide one or more endpoints '
+            'using the --zmq-endpoint flag or by setting endpoints in the '
+            '"zmq_to_amqp" section of your configuration.')
+
     try:
-        bridges_module.zmq_to_amqp(amqp_url, exchange, zmq_endpoints, topics)
+        bridges_module.zmq_to_amqp(exchange, zmq_endpoints, topics)
     except Exception:
         _log.exception('An unexpected error occurred, please file a bug report')
 
 
 @cli.command()
-@click.option('--publish-endpoint')
-@click.option('--bindings')
-@click.option('--queue-name')
-@click.option('--amqp-url')
-def amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint):
-    """Bridge an AMQP queue to a ZeroMQ PUB socket."""
-    amqp_url = amqp_url or config.conf['amqp_url']
-    queue_name = queue_name or config.conf['amqp_to_zmq']['queue_name']
-    bindings = bindings or config.conf['amqp_to_zmq']['bindings']
-    publish_endpoint = publish_endpoint or config.conf['amqp_to_zmq']['publish_endpoint']
+@click.option('--zmq-endpoint', multiple=True, help='A ZMQ socket to subscribe to')
+def verify_missing(zmq_endpoint):
+    """Check that all messages go through AMQP and ZeroMQ."""
+    if tw_logger is None:
+        raise click.exceptions.UsageError(
+            "You need to install Twisted to use this command."
+        )
+    tw_logger.globalLogPublisher.addObserver(
+        tw_logger.STDLibLogObserver(name="verify_missing")
+    )
+    zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
+    if not zmq_endpoints:
+        raise click.exceptions.UsageError(
+            'No ZeroMQ endpoints defined, please provide one or more endpoints '
+            'using the --zmq-endpoint flag or by setting endpoints in the '
+            '"zmq_to_amqp" section of your configuration.')
     try:
-        bridges_module.amqp_to_zmq(amqp_url, queue_name, bindings, publish_endpoint)
+        verify_missing_module.main(zmq_endpoints)
     except zmq.error.ZMQError as e:
-        _log.error(str(e))
+        _log.exception(e)
     except Exception:
         _log.exception('An unexpected error occurred, please file a bug report')

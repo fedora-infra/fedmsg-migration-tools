@@ -32,22 +32,13 @@ _log = logging.getLogger(__name__)
 
 #: A dictionary of application configuration defaults.
 DEFAULTS = dict(
-    amqp_url='amqp://',
-    amqp_to_zmq={
-        'queue_name': 'fedmsg_zmq_bridge',
-        'bindings': [
-            {
-                'exchange': 'amq.topic',
-                'routing_key': '#',
-                'arguments': {},
-            }
-        ],
-        'publish_endpoint': 'tcp://*:9940',
-    },
     zmq_to_amqp={
         'exchange': 'zmq.topic',
         'topics': [''],
         'zmq_endpoints': [],
+    },
+    verify_missing={
+        'queue_name': 'amqp_bridge_verify_missing',
     },
     log_config={
         'version': 1,
@@ -90,14 +81,16 @@ def load(filename=None):
     Load application configuration from a file and merge it with the default
     configuration.
 
-    If the ``FEDMSG_MIGRATION_TOOLS_CONFIG`` environment variable is set to a
+    If the ``FEDMSG_MIGRATION_TOOLS_CONF`` environment variable is set to a
     filesystem path, the configuration will be loaded from that location.
-    Otherwise, the path defaults to ``/etc/petshop/petshop.toml``.
+    Otherwise, the path defaults to ``/etc/fedmsg_migration_tools/config.toml``.
     """
     config = DEFAULTS.copy()
 
     if filename:
         config_path = filename
+    elif 'FEDMSG_MIGRATION_TOOLS_CONF' in os.environ:
+        config_path = os.environ['FEDMSG_MIGRATION_TOOLS_CONF']
     else:
         config_path = '/etc/fedmsg_migration_tools/config.toml'
 

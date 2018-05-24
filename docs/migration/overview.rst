@@ -155,7 +155,7 @@ set these up at home with relative ease:
 7. In a second terminal, start the AMQP to ZeroMQ bridge::
 
     workon fedmsg_migration_tools
-    fedmsg-migration-tools amqp_to_zmq
+    fedora-messaging consume --callback="fedmsg_migration_tools.bridges:amqp_to_zmq"
 
 8. Congratulations, you now have a functional bridge to and from AMQP. ZeroMQ
    messages are being published to the "zmq.topic" exchange, and any messages
