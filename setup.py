@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 
 from setuptools import setup, find_packages
@@ -43,7 +45,7 @@ def get_requirements(requirements_file='requirements.txt'):
 
 setup(
     name='fedmsg_migration_tools',
-    version='0.1.0',
+    version='0.1.1',
     description='A set of tools to aid in migrating from fedmsg to AMQP.',
     long_description=README,
     # Possible options are at https://pypi.python.org/pypi?%3Aaction=list_classifiers
