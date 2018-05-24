@@ -34,18 +34,19 @@ class AmqpConsumer(service.Service):
             self.on_message, self._get_bindings())
 
     def _get_bindings(self):
-        exchanges = [b["exchange"] for b in config.conf['amqp_to_zmq']['bindings']]
-        exchanges.append(config.conf['zmq_to_amqp']['exchange'])
-        return [
-            dict(
-                exchange=exchange,
-                routing_key="#",
-                queue_name=config.conf['verify_missing']['queue_name'],
-                # We don't want to store messages when not running.
-                queue_auto_delete=True,
-            )
-            for exchange in exchanges
-        ]
+        bindings = []
+        for binding in config.conf['verify_missing']['bindings']:
+            bindings += [
+                dict(
+                    exchange=binding['exchange'],
+                    routing_key=key,
+                    queue_name=binding['queue'],
+                    # We don't want to store messages when not running.
+                    queue_auto_delete=True,
+                )
+                for key in binding['routing_keys']
+            ]
+        return bindings
 
     @defer.inlineCallbacks
     def startService(self):
