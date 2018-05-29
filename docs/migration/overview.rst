@@ -35,6 +35,38 @@ provides. It's a great library to start with if if you're interested in building
 a message broker. Fedora shouldn't try to build a broker, though.
 
 
+Why AMQP and RabbitMQ
+=====================
+
+The core requirements for Fedora is a messaging protocol that offers:
+
+* Messages must be delivered to consumers at least once
+
+* Clients must be authenticated to publish messages and authorized to publish
+  using a given topic
+
+RabbitMQ is a mature, well-established broker that supports AMQP v0.8.0,
+v0.9.0, and v0.9.1 as well as 0.9.1 with a number of protocol extensions. It
+also supports the STOMP (v1.0, v1.1, and v1.2) and MQTT (v3.1.1 at this time)
+protocols via plugins.
+
+We already run RabbitMQ in Fedora infrastructure and have some familiarity with
+it. It supports authentication and `topic-based authorization`_. With the
+RabbitMQ publisher ack extension, publishers can be confident their messages
+were published and consumers will receive it at least once.
+
+There are other message protocols: STOMP, MQTT, and AMQP 1.0 just to name a
+few. There are other message brokers: Apache ActiveMQ, Qpid, and Mosquitto,
+for example. Some other protocols are capable of meeting our needs, and the
+broker Fedora infrastructure wishes to run is a choice best left to the system
+administrators.
+
+This document assumes AQMP and RabbitMQ for simplicity and to demonstrate a
+concrete system that can meet Fedora's needs. It would be reasonably straight-
+forward to implement the Python API (and message bridges) using, for example,
+STOMP.
+
+
 The Plan
 ========
 
@@ -169,3 +201,4 @@ set these up at home with relative ease:
 
 
 .. _fedora-messaging: https://fedora-messaging.readthedocs.io/en/latest/index.html
+.. _topic-based authorization: https://www.rabbitmq.com/access-control.html#topic-authorisation
