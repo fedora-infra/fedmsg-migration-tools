@@ -38,7 +38,18 @@ DEFAULTS = dict(
         'zmq_endpoints': [],
     },
     verify_missing={
-        'queue_name': 'amqp_bridge_verify_missing',
+        'bindings': [
+            {
+                'exchange': 'zmq.topic',
+                'queue': 'amqp_bridge_verify_missing',
+                'routing_keys': ['#'],
+            },
+            {
+                'exchange': 'amq.topic',
+                'queue': 'amqp_bridge_verify_missing',
+                'routing_keys': ['#'],
+            },
+        ],
     },
     log_config={
         'version': 1,

@@ -9,8 +9,17 @@ zmq_endpoints = []
 
 
 [verify_missing]
-# Name of the queue to use when verifying no messages go missing
-queue_name = "amqp_bridge_verify_missing"
+
+# The bindings to use for the AMQP queue
+[[verify_missing.bindings]]
+exchange = "zmq.topic"
+queue = "amqp_bridge_verify_missing"
+routing_keys = ["#"]
+
+[[verify_missing.bindings]]
+exchange = "amq.topic"
+queue = "amqp_bridge_verify_missing"
+routing_keys = ["#"]
 
 
 # The logging configuration, in Python dictConfig format.
