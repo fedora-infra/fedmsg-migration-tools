@@ -23,6 +23,7 @@ from __future__ import absolute_import
 
 import logging
 import logging.config
+import sys
 
 import click
 import zmq
@@ -34,9 +35,10 @@ from . import (
 )
 
 try:
-    from twisted import logger as tw_logger
+    # twisted.logger is available with Twisted 15+
+    from twisted.python import log as tw_log
 except ImportError:
-    tw_logger = None
+    tw_log = None
 
 
 _log = logging.getLogger(__name__)
@@ -84,13 +86,17 @@ def zmq_to_amqp(exchange, zmq_endpoint, topic):
 @click.option('--zmq-endpoint', multiple=True, help='A ZMQ socket to subscribe to')
 def verify_missing(zmq_endpoint):
     """Check that all messages go through AMQP and ZeroMQ."""
-    if tw_logger is None:
+    if tw_log is None:
         raise click.exceptions.UsageError(
             "You need to install Twisted to use this command."
         )
-    tw_logger.globalLogPublisher.addObserver(
-        tw_logger.STDLibLogObserver(name="verify_missing")
-    )
+    # When the current RHEL has Twisted 15+, we can use twisted.logger
+    # tw_logger.globalLogPublisher.addObserver(
+    #     tw_logger.STDLibLogObserver(name="verify_missing")
+    # )
+    tw_log.PythonLoggingObserver(loggerName="verify_missing").start()
+    tw_log.startLogging(sys.stdout)
+
     zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
     if not zmq_endpoints:
         raise click.exceptions.UsageError(

@@ -7,14 +7,11 @@ from fedora_messaging.twisted.producer import MessageProducer
 
 from twisted.internet import defer, reactor, task
 from twisted.application import service
-from twisted.logger import Logger
+# twisted.logger is available with Twisted 15+
+from twisted.python import log
 from txzmq import (
     ZmqEndpoint, ZmqEndpointType, ZmqFactory, ZmqSubConnection,
 )
-
-
-_log = logging.getLogger(__name__)
-_txlog = Logger()
 
 
 class MasterService(service.MultiService):
@@ -27,6 +24,8 @@ class MasterService(service.MultiService):
 
 
 class AmqpConsumer(service.Service):
+
+    name = "AmqpConsumer"
 
     def __init__(self, store):
         self.store = store
@@ -53,21 +52,27 @@ class AmqpConsumer(service.Service):
         try:
             yield self.producer.resumeProducing()
         except Exception:
-            _txlog.failure("Error in the AMQP consumer")
+            log.err("Error in the AMQP consumer", system=self.name)
         # Stop when the producer stops (on error probably).
         self.producer.producing.addCallback(
             lambda x: self.parent.stopService()
         )
 
     def on_message(self, message):
-        _log.debug('Received from AMQP on topic %s: %s', message.topic, message.body["msg_id"])
+        log.msg(
+            'Received from AMQP on topic {topic}: {msgid}'.format(
+                topic=message.topic, msgid=message.body["msg_id"]
+            ),
+            system=self.name, logLevel=logging.DEBUG
+        )
         self.store[message.body["msg_id"]] = (
             datetime.utcnow(),
             message.body,
         )
 
     def stopService(self):
-        _log.debug("Stopping AmqpConsumer")
+        log.msg("Stopping AmqpConsumer",
+                system=self.name, logLevel=logging.DEBUG)
         return self.producer.stopProducing()
 
 
@@ -85,26 +90,31 @@ class ZmqConsumer(service.Service):
             ZmqEndpoint(ZmqEndpointType.connect, endpoint)
             for endpoint in self.endpoints
         ]
-        _log.debug('Configuring ZeroMQ subscription socket')
+        log.msg('Configuring ZeroMQ subscription socket',
+                logLevel=logging.DEBUG)
         for endpoint in endpoints:
-            _log.info('Connecting to the %s ZeroMQ endpoint', endpoint)
+            log.msg('Connecting to the {endpoint} ZeroMQ endpoint'.format(
+                    endpoint=endpoint))
             s = ZmqSubConnection(self._factory, endpoint)
             s.subscribe(b"")
             s.gotMessage = self.on_message
-        _log.info('ZeroMQ consumer is ready')
+        log.msg('ZeroMQ consumer is ready')
 
     def on_message(self, body, topic):
         topic = topic.decode("utf-8")
         msg = json.loads(body)
-        _log.debug('Received from ZeroMQ on topic %s: %s',
-                   topic, msg["msg_id"])
+        log.msg(
+            'Received from ZeroMQ on topic {topic}: {msgid}'.format(
+                topic=topic, msgid=msg["msg_id"],
+            ), logLevel=logging.DEBUG
+        )
         self.store[msg["msg_id"]] = (
             datetime.utcnow(),
             msg,
         )
 
     def stopService(self):
-        _log.debug("Stopping ZmqConsumer")
+        log.msg("Stopping ZmqConsumer", logLevel=logging.DEBUG)
         self._factory.shutdown()
 
 
@@ -123,22 +133,26 @@ class Comparator(service.Service):
         self._cm_loop.start(10)
 
     def stopService(self):
-        _log.debug("Stopping Comparator")
+        log.msg("Stopping Comparator", logLevel=logging.DEBUG)
         self._rm_loop.stop()
         self._cm_loop.stop()
 
     def remove_matching(self):
-        _log.debug("Checking for matching messages (%i, %i)",
-                   len(self.amqp_store), len(self.zmq_store))
+        log.msg(
+            "Checking for matching messages ({amqplen}, {zmqlen})".format(
+                amqplen=len(self.amqp_store), zmqlen=len(self.zmq_store),
+            ), logLevel=logging.DEBUG
+        )
         for msg_id in list(self.amqp_store.keys()):
             if msg_id in self.zmq_store:
-                _log.info('Successfully received message (id %s) via ZMQ and '
-                          'AMQP', msg_id)
+                log.msg(
+                    ('Successfully received message (id {msgid}) via '
+                     'ZMQ and AMQP').format(msgid=msg_id))
                 del self.amqp_store[msg_id]
                 del self.zmq_store[msg_id]
 
     def check_missing(self):
-        _log.debug("Checking for missing messages")
+        log.msg("Checking for missing messages", logLevel=logging.DEBUG)
         self._check_store(self.amqp_store, "AMQP")
         self._check_store(self.zmq_store, "ZeroMQ")
 
@@ -147,8 +161,11 @@ class Comparator(service.Service):
         for msg_id, value in list(store.items()):
             time, msg = value
             if time < threshold:
-                _log.warning("Message %s was only received in %s",
-                             msg_id, source_name)
+                log.msg(
+                    "Message {msgid} was only received in {source}".format(
+                        msgid=msg_id, source=source_name),
+                    logLevel=logging.WARNING,
+                )
                 del store[msg_id]
 
 
