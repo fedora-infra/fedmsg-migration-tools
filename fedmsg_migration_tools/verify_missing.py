@@ -1,9 +1,26 @@
+# This file is part of fedmsg_migration_tools.
+# Copyright (C) 2018 Red Hat, Inc.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 import json
 import logging
 from datetime import datetime, timedelta
 
 from fedmsg_migration_tools import config
-from fedora_messaging.twisted.producer import MessageProducer
+from fedora_messaging.twisted.service import FedoraMessagingService
 
 from twisted.internet import defer, reactor, task
 from twisted.application import service
@@ -14,23 +31,16 @@ from txzmq import (
 )
 
 
-class MasterService(service.MultiService):
-    """Multi service that stops the reactor with itself."""
-
-    def stopService(self):
-        d = super(MasterService, self).stopService()
-        d.addCallback(lambda _: reactor.stop())
-        return d
-
-
-class AmqpConsumer(service.Service):
+class AmqpConsumer(FedoraMessagingService):
 
     name = "AmqpConsumer"
 
     def __init__(self, store):
         self.store = store
-        self.producer = MessageProducer(
-            self.on_message, self._get_bindings())
+        FedoraMessagingService.__init__(
+            self, on_message=self.on_message,
+            bindings=self._get_bindings()
+        )
 
     def _get_bindings(self):
         bindings = []
@@ -47,17 +57,6 @@ class AmqpConsumer(service.Service):
             ]
         return bindings
 
-    @defer.inlineCallbacks
-    def startService(self):
-        try:
-            yield self.producer.resumeProducing()
-        except Exception:
-            log.err("Error in the AMQP consumer", system=self.name)
-        # Stop when the producer stops (on error probably).
-        self.producer.producing.addCallback(
-            lambda x: self.parent.stopService()
-        )
-
     def on_message(self, message):
         log.msg(
             'Received from AMQP on topic {topic}: {msgid}'.format(
@@ -69,11 +68,6 @@ class AmqpConsumer(service.Service):
             datetime.utcnow(),
             message.body,
         )
-
-    def stopService(self):
-        log.msg("Stopping AmqpConsumer",
-                system=self.name, logLevel=logging.DEBUG)
-        return self.producer.stopProducing()
 
 
 class ZmqConsumer(service.Service):
@@ -115,7 +109,8 @@ class ZmqConsumer(service.Service):
 
     def stopService(self):
         log.msg("Stopping ZmqConsumer", logLevel=logging.DEBUG)
-        self._factory.shutdown()
+        if self._factory.connections is not None:
+            self._factory.shutdown()
 
 
 class Comparator(service.Service):
@@ -134,8 +129,9 @@ class Comparator(service.Service):
 
     def stopService(self):
         log.msg("Stopping Comparator", logLevel=logging.DEBUG)
-        self._rm_loop.stop()
-        self._cm_loop.stop()
+        for loop in (self._rm_loop, self._cm_loop):
+            if loop.running:
+                loop.stop()
 
     def remove_matching(self):
         log.msg(
@@ -169,16 +165,21 @@ class Comparator(service.Service):
                 del store[msg_id]
 
 
-def main(zmq_endpoints):
+def get_main_service(zmq_endpoints):
     amqp_store = {}
     zmq_store = {}
-    verify_service = MasterService()
+    verify_service = service.MultiService()
     comparator = Comparator(amqp_store, zmq_store)
     comparator.setServiceParent(verify_service)
     zmq_consumer = ZmqConsumer(zmq_store, zmq_endpoints)
     zmq_consumer.setServiceParent(verify_service)
     amqp_consumer = AmqpConsumer(amqp_store)
     amqp_consumer.setServiceParent(verify_service)
+    return verify_service
+
+
+def main(zmq_endpoints):
+    verify_service = get_main_service(zmq_endpoints)
     verify_service.startService()
     try:
         reactor.run()
