@@ -1,2 +1,3 @@
 include LICENSE README.rst config.toml.example dev-requirements.txt requirements.txt
+graft docs
 graft systemd
