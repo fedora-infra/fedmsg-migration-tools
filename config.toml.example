@@ -5,7 +5,10 @@ exchange = "zmq.topic"
 # messages are forwarded to AMQP.
 topics = [""]
 # A list of strings in the ZeroMQ socket format (e.g. "tcp://host:socket")
-zmq_endpoints = []
+zmq_endpoints = [
+    "tcp://fedoraproject.org:9940",
+    "tcp://release-monitoring.org:9940",
+]
 
 
 [verify_missing]
