@@ -83,7 +83,7 @@ def load(filename=None):
 
     If the ``FEDMSG_MIGRATION_TOOLS_CONF`` environment variable is set to a
     filesystem path, the configuration will be loaded from that location.
-    Otherwise, the path defaults to ``/etc/fedmsg_migration_tools/config.toml``.
+    Otherwise, the path defaults to ``/etc/fedmsg-migration-tools/config.toml``.
     """
     config = DEFAULTS.copy()
 
@@ -92,7 +92,7 @@ def load(filename=None):
     elif "FEDMSG_MIGRATION_TOOLS_CONF" in os.environ:
         config_path = os.environ["FEDMSG_MIGRATION_TOOLS_CONF"]
     else:
-        config_path = "/etc/fedmsg_migration_tools/config.toml"
+        config_path = "/etc/fedmsg-migration-tools/config.toml"
 
     if os.path.exists(config_path):
         _log.info("Loading configuration from {}".format(config_path))
