@@ -1,0 +1,15 @@
+[Unit]
+Description=Fedmsg migration: AMQP to ZeroMQ
+After=network.target
+Documentation=https://github.com/fedora-infra/fedmsg-migration-tools
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sysconfig/fedmsg-migration-tools
+ExecStart=/usr/bin/fedora-messaging consume --callback="fedmsg_migration_tools.bridges:AmqpToZmq"
+User=fedmsg
+Group=fedmsg
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
