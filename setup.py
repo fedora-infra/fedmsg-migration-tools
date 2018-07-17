@@ -48,6 +48,7 @@ setup(
     version="0.1.1",
     description="A set of tools to aid in migrating from fedmsg to AMQP.",
     long_description=README,
+    url="https://github.com/fedora-infra/fedmsg-migration-tools",
     # Possible options are at https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Development Status :: 1 - Planning",
