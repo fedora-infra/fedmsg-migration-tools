@@ -15,8 +15,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+import datetime
 import json
 import logging
+import time
 
 from fedmsg import config as fedmsg_config
 from fedora_messaging import api, config as fm_config
@@ -55,7 +57,7 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
         message = Message(body=json.loads(body), topic=topic.decode("utf-8"))
 
         if fedmsg_config.conf["validate_signatures"] and not fedmsg.crypto.validate(
-            message.body, **fedmsg_config.conf
+            message._body, **fedmsg_config.conf
         ):
             _log.error("Message on topic %r failed validation", topic)
             continue
@@ -107,6 +109,7 @@ class AmqpToZmq(object):
         self.pub_socket = context.socket(zmq.PUB)
         self.pub_socket.bind(self.publish_endpoint)
         _log.info("Bound to %s for ZeroMQ publication", self.publish_endpoint)
+        self._message_counter = 0
 
     def __call__(self, message):
         """
@@ -115,11 +118,25 @@ class AmqpToZmq(object):
         Args:
             message (fedora_messaging.api.Message): The message from AMQP.
         """
-        if (
-            "signature" not in message.body or "certificate" not in message.body
-        ) and fedmsg_config.conf["sign_messages"]:
+        # fedmsg wraps message bodies in the following dictionary. We need to
+        # wrap messages bridged back into ZMQ with it so old consumers don't
+        # explode with KeyErrors.
+        self._message_counter += 1
+        wrapped_body = {
+            "topic": message.topic,
+            "msg": message._body,
+            "timestamp": int(time.time()),
+            "msg_id": "{y}-{id}".format(
+                y=datetime.datetime.utcnow().year, id=message.id
+            ),
+            "i": self._message_counter,
+            "username": "amqp-bridge",
+        }
+        message._body = wrapped_body
+
+        if fedmsg_config.conf["sign_messages"]:
             try:
-                message.body = fedmsg.crypto.sign(message.body, **fedmsg_config.conf)
+                message._body = fedmsg.crypto.sign(message._body, **fedmsg_config.conf)
             except ValueError as e:
                 _log.error("Unable to sign message with fedmsg: %s", str(e))
                 raise HaltConsumer(exit_code=1, reason=e)
@@ -132,7 +149,7 @@ class AmqpToZmq(object):
             )
             zmq_message = [
                 message.topic.encode("utf-8"),
-                json.dumps(message.body).encode("utf-8"),
+                json.dumps(message._body).encode("utf-8"),
             ]
             self.pub_socket.send_multipart(zmq_message)
         except zmq.ZMQError as e:
