@@ -32,59 +32,48 @@ _log = logging.getLogger(__name__)
 
 #: A dictionary of application configuration defaults.
 DEFAULTS = dict(
-    zmq_to_amqp={
-        'exchange': 'zmq.topic',
-        'topics': [''],
-        'zmq_endpoints': [],
-    },
+    zmq_to_amqp={"exchange": "zmq.topic", "topics": [""], "zmq_endpoints": []},
     verify_missing={
-        'bindings': [
+        "bindings": [
             {
-                'exchange': 'zmq.topic',
-                'queue': 'amqp_bridge_verify_missing',
-                'routing_keys': ['#'],
+                "exchange": "zmq.topic",
+                "queue": "amqp_bridge_verify_missing",
+                "routing_keys": ["#"],
             },
             {
-                'exchange': 'amq.topic',
-                'queue': 'amqp_bridge_verify_missing',
-                'routing_keys': ['#'],
+                "exchange": "amq.topic",
+                "queue": "amqp_bridge_verify_missing",
+                "routing_keys": ["#"],
             },
-        ],
+        ]
     },
     log_config={
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'simple': {
-                'format': '[%(name)s %(levelname)s] %(message)s',
-            },
-        },
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-                'formatter': 'simple',
-                'stream': 'ext://sys.stdout',
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"simple": {"format": "[%(name)s %(levelname)s] %(message)s"}},
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "simple",
+                "stream": "ext://sys.stdout",
             }
         },
-        'loggers': {
-            'fedmsg_migration_tools': {
-                'level': 'INFO',
-                'propagate': False,
-                'handlers': ['console'],
-            },
+        "loggers": {
+            "fedmsg_migration_tools": {
+                "level": "INFO",
+                "propagate": False,
+                "handlers": ["console"],
+            }
         },
         # The root logger configuration; this is a catch-all configuration
         # that applies to all log messages not handled by a different logger
-        'root': {
-            'level': 'WARNING',
-            'handlers': ['console'],
-        },
+        "root": {"level": "WARNING", "handlers": ["console"]},
     },
 )
 
 # Start with a basic logging configuration, which will be replaced by any user-
 # specified logging configuration when the configuration is loaded.
-logging.config.dictConfig(DEFAULTS['log_config'])
+logging.config.dictConfig(DEFAULTS["log_config"])
 
 
 def load(filename=None):
@@ -100,29 +89,30 @@ def load(filename=None):
 
     if filename:
         config_path = filename
-    elif 'FEDMSG_MIGRATION_TOOLS_CONF' in os.environ:
-        config_path = os.environ['FEDMSG_MIGRATION_TOOLS_CONF']
+    elif "FEDMSG_MIGRATION_TOOLS_CONF" in os.environ:
+        config_path = os.environ["FEDMSG_MIGRATION_TOOLS_CONF"]
     else:
-        config_path = '/etc/fedmsg_migration_tools/config.toml'
+        config_path = "/etc/fedmsg_migration_tools/config.toml"
 
     if os.path.exists(config_path):
-        _log.info('Loading configuration from {}'.format(config_path))
+        _log.info("Loading configuration from {}".format(config_path))
         with open(config_path) as fd:
             try:
                 file_config = pytoml.loads(fd.read())
                 for key in file_config:
                     config[key.lower()] = file_config[key]
             except pytoml.core.TomlError as e:
-                _log.error('Failed to parse {}: {}'.format(config_path, str(e)))
+                _log.error("Failed to parse {}: {}".format(config_path, str(e)))
                 sys.exit(1)
     else:
-        _log.info('The configuration file, {}, does not exist.'.format(config_path))
+        _log.info("The configuration file, {}, does not exist.".format(config_path))
 
     return config
 
 
 class LazyConfig(dict):
     """This class lazy-loads the configuration file."""
+
     loaded = False
 
     def __getitem__(self, *args, **kw):

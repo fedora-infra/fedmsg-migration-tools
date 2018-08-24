@@ -37,7 +37,7 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
     sub_socket = context.socket(zmq.SUB)
     for endpoint in zmq_endpoints:
         sub_socket.connect(endpoint)
-        _log.info('Connecting ZeroMQ subscription socket to %s', endpoint)
+        _log.info("Connecting ZeroMQ subscription socket to %s", endpoint)
     for topic in topics:
         sub_socket.setsockopt(zmq.SUBSCRIBE, topic)
         _log.info('Configuring ZeroMQ subscription socket with the "%s" topic', topic)
@@ -46,27 +46,31 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
         try:
             topic, body = sub_socket.recv_multipart()
         except zmq.ZMQError as e:
-            _log.error('Failed to receive message from subscription socket: %s', e)
+            _log.error("Failed to receive message from subscription socket: %s", e)
             continue
         except ValueError as e:
-            _log.error('Unable to unpack message from pair socket: %s', e)
+            _log.error("Unable to unpack message from pair socket: %s", e)
             continue
 
-        message = Message(
-            body=json.loads(body), topic=topic.decode("utf-8"),
-        )
+        message = Message(body=json.loads(body), topic=topic.decode("utf-8"))
 
-        if (fedmsg_config.conf['validate_signatures'] and
-                not fedmsg.crypto.validate(message.body, **fedmsg_config.conf)):
-            _log.error('Message on topic %r failed validation', topic)
+        if fedmsg_config.conf["validate_signatures"] and not fedmsg.crypto.validate(
+            message.body, **fedmsg_config.conf
+        ):
+            _log.error("Message on topic %r failed validation", topic)
             continue
 
-        _log.debug('Publishing %r to %r', body, topic)
+        _log.debug("Publishing %r to %r", body, topic)
         try:
             api.publish(message, exchange=exchange)
         except Exception as e:
-            _log.exception('Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
-                           body, exchange, topic, e)
+            _log.exception(
+                'Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
+                body,
+                exchange,
+                topic,
+                e,
+            )
 
 
 class AmqpToZmq(object):
@@ -93,14 +97,16 @@ class AmqpToZmq(object):
 
     def __init__(self):
         try:
-            self.publish_endpoint = fm_config.conf['consumer_config']['publish_endpoint']
+            self.publish_endpoint = fm_config.conf["consumer_config"][
+                "publish_endpoint"
+            ]
         except KeyError:
-            self.publish_endpoint = 'tcp://*:9940'
+            self.publish_endpoint = "tcp://*:9940"
 
         context = zmq.Context.instance()
         self.pub_socket = context.socket(zmq.PUB)
         self.pub_socket.bind(self.publish_endpoint)
-        _log.info('Bound to %s for ZeroMQ publication', self.publish_endpoint)
+        _log.info("Bound to %s for ZeroMQ publication", self.publish_endpoint)
 
     def __call__(self, message):
         """
@@ -109,19 +115,26 @@ class AmqpToZmq(object):
         Args:
             message (fedora_messaging.api.Message): The message from AMQP.
         """
-        if (('signature' not in message.body or 'certificate' not in message.body) and
-                fedmsg_config.conf['sign_messages']):
+        if (
+            "signature" not in message.body or "certificate" not in message.body
+        ) and fedmsg_config.conf["sign_messages"]:
             try:
                 message.body = fedmsg.crypto.sign(message.body, **fedmsg_config.conf)
             except ValueError as e:
-                _log.error('Unable to sign message with fedmsg: %s', str(e))
+                _log.error("Unable to sign message with fedmsg: %s", str(e))
                 raise HaltConsumer(exit_code=1, reason=e)
 
         try:
-            _log.debug('Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
-                       message.topic, self.publish_endpoint)
-            zmq_message = [message.topic.encode("utf-8"), json.dumps(message.body).encode('utf-8')]
+            _log.debug(
+                'Publishing message on "%s" to the ZeroMQ PUB socket "%s"',
+                message.topic,
+                self.publish_endpoint,
+            )
+            zmq_message = [
+                message.topic.encode("utf-8"),
+                json.dumps(message.body).encode("utf-8"),
+            ]
             self.pub_socket.send_multipart(zmq_message)
         except zmq.ZMQError as e:
-            _log.error('Message delivery failed: %r', e)
+            _log.error("Message delivery failed: %r", e)
             raise Nack()
