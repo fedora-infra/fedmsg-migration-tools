@@ -57,6 +57,7 @@ def cli(conf):
             config.conf.load_config(filename=conf)
         except ValueError as e:
             raise click.exceptions.BadParameter(e)
+    config.conf.setup_logging()
 
 
 @cli.command()
@@ -94,8 +95,9 @@ def verify_missing(zmq_endpoint):
     # tw_logger.globalLogPublisher.addObserver(
     #     tw_logger.STDLibLogObserver(name="verify_missing")
     # )
+    # Send all the logs to stdlib's logging library
     tw_log.PythonLoggingObserver(loggerName="verify_missing").start()
-    tw_log.startLogging(sys.stdout)
+    tw_log.startLogging(tw_log.NullFile())
 
     zmq_endpoints = zmq_endpoint or config.conf['zmq_to_amqp']['zmq_endpoints']
     if not zmq_endpoints:
