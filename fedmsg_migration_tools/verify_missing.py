@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from fedmsg_migration_tools import config
 from fedora_messaging.twisted.service import FedoraMessagingService
 
-from twisted.internet import defer, reactor, task
+from twisted.internet import reactor, task
 from twisted.application import service
 
 # twisted.logger is available with Twisted 15+

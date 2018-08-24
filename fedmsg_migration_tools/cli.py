@@ -23,7 +23,6 @@ from __future__ import absolute_import
 
 import logging
 import logging.config
-import sys
 
 import click
 import zmq
