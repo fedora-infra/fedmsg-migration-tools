@@ -54,7 +54,6 @@ setup(
         "Development Status :: 1 - Planning",
         "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
         "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 3",
     ],
     license="GPLv2+",
