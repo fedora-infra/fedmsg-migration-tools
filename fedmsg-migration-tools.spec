@@ -61,6 +61,11 @@ for service in amqp-to-zmq zmq-to-amqp verify-missing; do
 done
 
 
+%check
+export PYTHONPATH=.
+pytest-3
+
+
 %pre
 getent group fedmsg >/dev/null || groupadd -r fedmsg
 getent passwd fedmsg >/dev/null || \
