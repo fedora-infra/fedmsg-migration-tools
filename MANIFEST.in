@@ -1,3 +1,4 @@
 include LICENSE README.rst config.toml.example dev-requirements.txt requirements.txt
 graft docs
 graft systemd
+graft fedmsg_migration_tools/tests/fixtures

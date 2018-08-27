@@ -61,9 +61,7 @@ setup(
     maintainer_email="infrastructure@lists.fedoraproject.org",
     platforms=["Fedora", "GNU/Linux"],
     keywords="fedora",
-    packages=find_packages(
-        exclude=("fedmsg_migration_tools.tests", "fedmsg_migration_tools.tests.*")
-    ),
+    packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
     install_requires=get_requirements(),
