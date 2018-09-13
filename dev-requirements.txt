@@ -2,3 +2,4 @@ sphinx
 pytest
 pytest-cov
 mock
+towncrier

@@ -12,9 +12,12 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath("../"))  # NOQA
+
+import fedmsg_migration_tools
 
 
 # -- Project information -----------------------------------------------------
@@ -24,9 +27,9 @@ copyright = "2018, Red Hat, Inc"
 author = "Jeremy Cline, Aurélien Bompard"
 
 # The short X.Y version
-version = "0.1"
+version = ".".join(fedmsg_migration_tools.__version__.split(".")[:2])
 # The full version, including alpha/beta/rc tags
-release = "0.1.0"
+release = fedmsg_migration_tools.__version__
 
 
 # -- General configuration ---------------------------------------------------

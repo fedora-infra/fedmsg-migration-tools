@@ -1,11 +1,19 @@
 #!/usr/bin/env python
 
 import os
+import re
 
 from setuptools import setup, find_packages
 
 
 here = os.path.abspath(os.path.dirname(__file__))
+
+
+with open(os.path.join(here, "fedmsg_migration_tools", "__init__.py")) as fd:
+    match = re.search('^__version__ = "([^"]+)"$', fd.read(), re.MULTILINE)
+    VERSION = match.group(1)
+
+
 with open(os.path.join(here, "README.rst")) as fd:
     README = fd.read()
 
@@ -45,7 +53,7 @@ def get_requirements(requirements_file="requirements.txt"):
 
 setup(
     name="fedmsg_migration_tools",
-    version="0.1.1",
+    version=VERSION,
     description="A set of tools to aid in migrating from fedmsg to AMQP.",
     long_description=README,
     url="https://github.com/fedora-infra/fedmsg-migration-tools",

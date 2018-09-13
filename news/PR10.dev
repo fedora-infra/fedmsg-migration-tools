@@ -1,0 +1,2 @@
+Use towncrier to generate the release notes, and check our
+dependencies' licenses.
