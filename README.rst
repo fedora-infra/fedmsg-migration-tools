@@ -12,3 +12,5 @@ Fedmsg Migration Tools
     :target: https://fedmsg-migration-tools.readthedocs.io/en/latest/?badge=latest
 
 Tools for migrating away from fedmsg.
+
+Documentation available at http://fedmsg-migration-tools.readthedocs.io/.
