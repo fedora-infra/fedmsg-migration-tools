@@ -21,5 +21,6 @@ Project Documentation
 .. toctree::
    :maxdepth: 2
 
+   container
    contributing
    changelog

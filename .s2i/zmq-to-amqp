@@ -1,0 +1,2 @@
+#!/bin/sh
+exec fedmsg-migration-tools zmq_to_amqp

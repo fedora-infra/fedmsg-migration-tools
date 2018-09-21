@@ -1,0 +1,2 @@
+#!/bin/sh
+exec fedora-messaging consume --callback="fedmsg_migration_tools.bridges:AmqpToZmq"

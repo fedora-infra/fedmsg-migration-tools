@@ -1,0 +1,11 @@
+.tox
+.git
+build
+dist
+*.egg-info
+htmlcov
+venv
+.venv
+
+# Local config file
+config.toml

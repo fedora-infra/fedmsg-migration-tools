@@ -1,0 +1,2 @@
+#!/bin/sh
+exec fedmsg-migration-tools verify_missing
