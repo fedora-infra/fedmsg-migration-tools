@@ -46,6 +46,7 @@ class AmqpConsumer(FedoraMessagingService):
             bindings += [
                 dict(
                     exchange=binding["exchange"],
+                    exchange_type="topic",
                     routing_key=key,
                     queue_name=binding["queue"],
                     # We don't want to store messages when not running.
