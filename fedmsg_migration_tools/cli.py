@@ -55,7 +55,7 @@ def cli(conf):
     config.conf.setup_logging()
 
 
-@cli.command()
+@cli.command("zmq_to_amqp")
 @click.option("--topic", multiple=True)
 @click.option("--zmq-endpoint", multiple=True, help="A ZMQ socket to subscribe to")
 @click.option("--exchange")
@@ -79,7 +79,7 @@ def zmq_to_amqp(exchange, zmq_endpoint, topic):
         _log.exception("An unexpected error occurred, please file a bug report")
 
 
-@cli.command()
+@cli.command("verify_missing")
 @click.option("--zmq-endpoint", multiple=True, help="A ZMQ socket to subscribe to")
 def verify_missing(zmq_endpoint):
     """Check that all messages go through AMQP and ZeroMQ."""
