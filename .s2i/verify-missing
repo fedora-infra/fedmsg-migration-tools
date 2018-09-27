@@ -1,2 +1,2 @@
 #!/bin/sh
-exec fedmsg-migration-tools verify_missing
+exec fedmsg-migration-tools --conf /etc/fedora-messaging/verify-missing.toml verify_missing

@@ -1,2 +1,2 @@
 #!/bin/sh
-exec fedmsg-migration-tools zmq_to_amqp
+exec fedmsg-migration-tools --conf /etc/fedora-messaging/zmq-to-amqp.toml zmq_to_amqp
