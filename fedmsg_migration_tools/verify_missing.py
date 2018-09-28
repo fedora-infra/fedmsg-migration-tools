@@ -99,8 +99,7 @@ class ZmqConsumer(service.Service):
             ),
             logLevel=logging.DEBUG,
         )
-        msg_id = msg["msg_id"][5:]  # Remove the year prefix
-        self.store[msg_id] = (datetime.utcnow(), msg)
+        self.store[msg["msg_id"]] = (datetime.utcnow(), msg)
 
     def stopService(self):
         log.msg("Stopping ZmqConsumer", logLevel=logging.DEBUG)

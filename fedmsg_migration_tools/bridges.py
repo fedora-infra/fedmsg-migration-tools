@@ -54,13 +54,16 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
             _log.error("Unable to unpack message from pair socket: %s", e)
             continue
 
-        message = Message(body=json.loads(body), topic=topic.decode("utf-8"))
+        body = json.loads(body)
 
         if fedmsg_config.conf["validate_signatures"] and not fedmsg.crypto.validate(
-            message._body, **fedmsg_config.conf
+            body, **fedmsg_config.conf
         ):
             _log.error("Message on topic %r failed validation", topic)
             continue
+
+        message = Message(body=body, topic=topic.decode("utf-8"))
+        message.id = body["msg_id"]
 
         _log.debug("Publishing %r to %r", body, topic)
         try:
