@@ -59,12 +59,12 @@ class AmqpConsumer(FedoraMessagingService):
     def on_message(self, message):
         log.msg(
             "Received from AMQP on topic {topic}: {msgid}".format(
-                topic=message.topic, msgid=message.body["msg_id"]
+                topic=message.topic, msgid=message.id
             ),
             system=self.name,
             logLevel=logging.DEBUG,
         )
-        self.store[message.body["msg_id"]] = (datetime.utcnow(), message.body)
+        self.store[message.id] = (datetime.utcnow(), str(message))
 
 
 class ZmqConsumer(service.Service):
