@@ -34,18 +34,28 @@ _log = logging.getLogger(__name__)
 DEFAULTS = dict(
     zmq_to_amqp={"exchange": "zmq.topic", "topics": [""], "zmq_endpoints": []},
     verify_missing={
+        "exchanges": [
+            {"exchange": "amq.topic", "exchange_type": "topic", "durable": True},
+            {"exchange": "zmq.topic", "exchange_type": "topic", "durable": True},
+        ],
+        "queue": {
+            "queue": "amqp_bridge_verify_missing",
+            "durable": False,
+            "auto_delete": True,
+            "arguments": {"x-message-ttl": 1000 * 60},
+        },
         "bindings": [
             {
                 "exchange": "zmq.topic",
                 "queue": "amqp_bridge_verify_missing",
-                "routing_keys": ["#"],
+                "routing_key": "#",
             },
             {
                 "exchange": "amq.topic",
                 "queue": "amqp_bridge_verify_missing",
-                "routing_keys": ["#"],
+                "routing_key": "#",
             },
-        ]
+        ],
     },
     log_config={
         "version": 1,

@@ -36,25 +36,12 @@ class AmqpConsumer(FedoraMessagingService):
 
     def __init__(self, store):
         self.store = store
-        FedoraMessagingService.__init__(
-            self, on_message=self.on_message, bindings=self._get_bindings()
-        )
-
-    def _get_bindings(self):
-        bindings = []
-        for binding in config.conf["verify_missing"]["bindings"]:
-            bindings += [
-                dict(
-                    exchange=binding["exchange"],
-                    exchange_type="topic",
-                    routing_key=key,
-                    queue_name=binding["queue"],
-                    # We don't want to store messages when not running.
-                    queue_auto_delete=True,
-                )
-                for key in binding["routing_keys"]
-            ]
-        return bindings
+        kwargs = config.conf["verify_missing"].copy()
+        kwargs["queues"] = [kwargs.pop("queue")]
+        kwargs["consumers"] = {
+            config.conf["verify_missing"]["queue"]["queue"]: self.on_message
+        }
+        FedoraMessagingService.__init__(self, **kwargs)
 
     def on_message(self, message):
         log.msg(
