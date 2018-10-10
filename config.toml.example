@@ -13,6 +13,24 @@ zmq_endpoints = [
 
 [verify_missing]
 
+# The queue to setup
+[verify_missing.queue]
+queue = "amqp_bridge_verify_missing"
+durable = false
+auto_delete = true
+arguments = {"x-message-ttl": 60000}
+
+# The exchanges to declare
+[[verify_missing.exchanges]]
+exchange = "amq.topic"
+exchange_type = "topic"
+durable = true
+
+[[verify_missing.exchanges]]
+exchange = "zmq.topic"
+exchange_type = "topic"
+durable = true
+
 # The bindings to use for the AMQP queue
 [[verify_missing.bindings]]
 exchange = "zmq.topic"
