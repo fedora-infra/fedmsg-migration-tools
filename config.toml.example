@@ -35,12 +35,12 @@ durable = true
 [[verify_missing.bindings]]
 exchange = "zmq.topic"
 queue = "amqp_bridge_verify_missing"
-routing_keys = ["#"]
+routing_key = "#"
 
 [[verify_missing.bindings]]
 exchange = "amq.topic"
 queue = "amqp_bridge_verify_missing"
-routing_keys = ["#"]
+routing_key = "#"
 
 
 # The logging configuration, in Python dictConfig format.
