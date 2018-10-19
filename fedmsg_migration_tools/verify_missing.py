@@ -96,7 +96,7 @@ class ZmqConsumer(service.Service):
 
 class Comparator(service.Service):
 
-    MATCH_WINDOW = 20
+    MATCH_WINDOW = 30
 
     def __init__(self, amqp_store, zmq_store):
         self.amqp_store = amqp_store
@@ -142,8 +142,8 @@ class Comparator(service.Service):
             time, msg = value
             if time < threshold:
                 log.msg(
-                    "Message {msgid} was only received in {source}".format(
-                        msgid=msg_id, source=source_name
+                    "Message {msgid} was only received in {source} (at {time})".format(
+                        msgid=msg_id, source=source_name, time=time.isoformat()
                     ),
                     logLevel=logging.WARNING,
                 )
