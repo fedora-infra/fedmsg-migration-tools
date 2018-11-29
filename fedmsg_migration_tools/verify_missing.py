@@ -51,7 +51,10 @@ class AmqpConsumer(FedoraMessagingService):
             system=self.name,
             logLevel=logging.DEBUG,
         )
-        self.store[message.id] = (datetime.utcnow(), str(message))
+        self.store[message.id] = (
+            datetime.utcnow(),
+            {"msg_id": message.id, "topic": message.topic, "msg": str(message)},
+        )
 
 
 class ZmqConsumer(service.Service):
@@ -142,8 +145,14 @@ class Comparator(service.Service):
             time, msg = value
             if time < threshold:
                 log.msg(
-                    "Message {msgid} was only received in {source} (at {time})".format(
-                        msgid=msg_id, source=source_name, time=time.isoformat()
+                    (
+                        "Message {msgid} was only received in {source} "
+                        "(at {time}, with topic {topic})"
+                    ).format(
+                        msgid=msg_id,
+                        source=source_name,
+                        time=time.isoformat(),
+                        topic=msg.get("topic", "NO TOPIC"),
                     ),
                     logLevel=logging.WARNING,
                 )
