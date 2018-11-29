@@ -99,7 +99,7 @@ class ZmqConsumer(service.Service):
 
 class Comparator(service.Service):
 
-    MATCH_WINDOW = 30
+    MATCH_WINDOW = 60
 
     def __init__(self, amqp_store, zmq_store):
         self.amqp_store = amqp_store
