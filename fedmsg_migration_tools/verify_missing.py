@@ -83,6 +83,14 @@ class ZmqConsumer(service.Service):
     def on_message(self, body, topic):
         topic = topic.decode("utf-8")
         msg = json.loads(body)
+        if "msg_id" not in msg:
+            log.msg(
+                "Received a message without a msg_id from ZeroMQ on topic {topic}".format(
+                    topic=topic
+                ),
+                logLevel=logging.INFO,
+            )
+            return
         log.msg(
             "Received from ZeroMQ on topic {topic}: {msgid}".format(
                 topic=topic, msgid=msg["msg_id"]
