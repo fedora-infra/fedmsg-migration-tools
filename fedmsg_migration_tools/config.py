@@ -24,7 +24,7 @@ import logging.config
 import os
 import sys
 
-import pytoml
+import toml
 
 
 _log = logging.getLogger(__name__)
@@ -108,10 +108,10 @@ def load(filename=None):
         _log.info("Loading configuration from {}".format(config_path))
         with open(config_path) as fd:
             try:
-                file_config = pytoml.loads(fd.read())
+                file_config = toml.load(fd)
                 for key in file_config:
                     config[key.lower()] = file_config[key]
-            except pytoml.core.TomlError as e:
+            except toml.TomlDecodeError as e:
                 _log.error("Failed to parse {}: {}".format(config_path, str(e)))
                 sys.exit(1)
     else:

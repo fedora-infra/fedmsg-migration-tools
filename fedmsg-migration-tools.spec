@@ -17,7 +17,7 @@ BuildRequires:  python%{python3_pkgversion}-fedmsg
 BuildRequires:  python%{python3_pkgversion}-twisted
 BuildRequires:  python%{python3_pkgversion}-txzmq
 BuildRequires:  python%{python3_pkgversion}-fedora-messaging
-BuildRequires:  python%{python3_pkgversion}-pytoml
+BuildRequires:  python%{python3_pkgversion}-toml
 
 BuildRequires:  python-sphinx
 
