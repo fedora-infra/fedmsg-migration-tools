@@ -18,6 +18,7 @@
 import datetime
 import unittest
 import json
+import socket
 
 from fedora_messaging import message
 import mock
@@ -82,3 +83,32 @@ class AmqpToZmqTests(unittest.TestCase):
         del body["certificate"]
 
         self.assertEqual(body, expected)
+
+    @mock.patch("fedmsg_migration_tools.bridges.zmq.Context", mock.Mock())
+    def test_signed_implicit_cert(self):
+        """Assert signing certificate is properly autodetected."""
+        zmq_bridge = bridges.AmqpToZmq()
+        msg = message.Message(topic="my.topic", body={"my": "message"})
+        hostname = socket.gethostname().split(".", 1)[0]
+        base_conf = {"sign_messages": True, "ssldir": FIXTURES_DIR}
+        sign_configs = [
+            {"name": "fedmsg", "certnames": {"fedmsg": "fedmsg"}},
+            {
+                "cert_prefix": "fedmsg",
+                "certnames": {"fedmsg.{}".format(hostname): "fedmsg"},
+            },
+        ]
+        for sign_config in sign_configs:
+            conf = base_conf.copy()
+            conf.update(sign_config)
+            with mock.patch.dict(
+                "fedmsg_migration_tools.bridges.fedmsg_config.conf", conf
+            ):
+                with mock.patch(
+                    "fedmsg_migration_tools.bridges.fedmsg.crypto.sign"
+                ) as mock_sign:
+                    mock_sign.side_effect = lambda *a, **kw: a[0]
+                    zmq_bridge(msg)
+            sign_call_kw = mock_sign.call_args_list[-1][1]
+            self.assertIn("certname", sign_call_kw)
+            self.assertEqual(sign_call_kw["certname"], "fedmsg")

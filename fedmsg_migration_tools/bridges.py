@@ -18,6 +18,7 @@
 import datetime
 import json
 import logging
+import socket
 import time
 
 from fedmsg import config as fedmsg_config
@@ -138,6 +139,19 @@ class AmqpToZmq(object):
         message._body = wrapped_body
 
         if fedmsg_config.conf["sign_messages"]:
+            # Find the cert name
+            if not fedmsg_config.conf.get("certname"):
+                hostname = socket.gethostname().split(".", 1)[0]
+                if "cert_prefix" in fedmsg_config.conf:
+                    cert_index = "%s.%s" % (fedmsg_config.conf["cert_prefix"], hostname)
+                else:
+                    cert_index = fedmsg_config.conf["name"]
+                    if cert_index == "relay_inbound":
+                        cert_index = "shell.%s" % hostname
+                fedmsg_config.conf["certname"] = fedmsg_config.conf["certnames"][
+                    cert_index
+                ]
+            # Sign the message
             try:
                 message._body = fedmsg.crypto.sign(message._body, **fedmsg_config.conf)
             except ValueError as e:
