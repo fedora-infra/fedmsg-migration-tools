@@ -1,0 +1,12 @@
+#!/bin/bash -e
+
+# The assemble script builds the application artifacts from a source and
+# places them into appropriate directories inside the image.
+
+# Execute the default S2I script
+/usr/libexec/s2i/assemble
+
+# Setup some symlinks
+mkdir -p /etc/pki/fedmsg
+ln -sf /etc/pki/fedmsg/crt/fedmsg-fedmsg-migration-tools.crt /etc/pki/fedmsg/fedmsg-migration-tools.crt
+ln -sf /etc/pki/fedmsg/key/fedmsg-fedmsg-migration-tools.key /etc/pki/fedmsg/fedmsg-migration-tools.key
