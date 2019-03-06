@@ -17,6 +17,7 @@
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 
 from fedmsg_migration_tools import config
@@ -58,6 +59,9 @@ class AmqpConsumer(FedoraMessagingService):
 
 
 class ZmqConsumer(service.Service):
+
+    year_prefix_re = re.compile("^[0-9]{4}-")
+
     def __init__(self, store, zmq_endpoints):
         self.store = store
         self.endpoints = zmq_endpoints
@@ -91,13 +95,15 @@ class ZmqConsumer(service.Service):
                 logLevel=logging.INFO,
             )
             return
+        msg_id = msg["msg_id"]
         log.msg(
             "Received from ZeroMQ on topic {topic}: {msgid}".format(
                 topic=topic, msgid=msg["msg_id"]
             ),
             logLevel=logging.DEBUG,
         )
-        self.store[msg["msg_id"]] = (datetime.utcnow(), msg)
+        msg_id = self.year_prefix_re.sub("", msg_id)
+        self.store[msg_id] = (datetime.utcnow(), msg)
 
     def stopService(self):
         log.msg("Stopping ZmqConsumer", logLevel=logging.DEBUG)
