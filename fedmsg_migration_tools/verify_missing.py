@@ -31,6 +31,9 @@ from twisted.python import log
 from txzmq import ZmqEndpoint, ZmqEndpointType, ZmqFactory, ZmqSubConnection
 
 
+YEAR_PREFIX_RE = re.compile("^[0-9]{4}-")
+
+
 class AmqpConsumer(FedoraMessagingService):
 
     name = "AmqpConsumer"
@@ -52,15 +55,15 @@ class AmqpConsumer(FedoraMessagingService):
             system=self.name,
             logLevel=logging.DEBUG,
         )
-        self.store[message.id] = (
+        msg_id = message.id
+        msg_id = YEAR_PREFIX_RE.sub("", msg_id)
+        self.store[msg_id] = (
             datetime.utcnow(),
             {"msg_id": message.id, "topic": message.topic, "msg": str(message)},
         )
 
 
 class ZmqConsumer(service.Service):
-
-    year_prefix_re = re.compile("^[0-9]{4}-")
 
     def __init__(self, store, zmq_endpoints):
         self.store = store
@@ -102,7 +105,7 @@ class ZmqConsumer(service.Service):
             ),
             logLevel=logging.DEBUG,
         )
-        msg_id = self.year_prefix_re.sub("", msg_id)
+        msg_id = YEAR_PREFIX_RE.sub("", msg_id)
         self.store[msg_id] = (datetime.utcnow(), msg)
 
     def stopService(self):

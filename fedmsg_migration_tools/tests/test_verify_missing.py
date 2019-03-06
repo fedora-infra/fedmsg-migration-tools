@@ -19,7 +19,39 @@ import datetime
 import json
 import unittest
 
+from fedora_messaging.api import Message
 from fedmsg_migration_tools import verify_missing
+
+
+class AmqpConsumerTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.store = {}
+        self.consumer = verify_missing.AmqpConsumer(self.store)
+
+    def test_year_prefix(self):
+        """Assert the year prefix on fedmsg is removed."""
+        year = datetime.datetime.utcnow().year
+        msg = Message(topic="dummy.topic", body={
+            "body": "dummy-body",
+        })
+        msg.id = "{}-dummy-msgid".format(year)
+        self.consumer.on_message(msg)
+        self.assertEqual(len(self.store), 1)
+        self.assertIn("dummy-msgid", self.store)
+        self.assertEqual(self.store["dummy-msgid"][1]["msg_id"], msg.id)
+
+    def test_without_year_prefix(self):
+        """Assert it handles messages without the year prefix."""
+        msg = Message(topic="dummy.topic", body={
+            "body": "dummy-body",
+        })
+        msg.id = "dummy-msgid"
+        self.consumer.on_message(msg)
+        self.assertEqual(len(self.store), 1)
+        self.assertIn("dummy-msgid", self.store)
+        self.assertEqual(self.store["dummy-msgid"][1]["msg_id"], msg.id)
+        self.assertEqual(self.store["dummy-msgid"][1]["topic"], "dummy.topic")
 
 
 class ZmqConsumerTestCase(unittest.TestCase):
