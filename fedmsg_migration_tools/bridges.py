@@ -83,7 +83,7 @@ class AmqpToZmq(object):
     """
     A fedora-messaging consumer that publishes messages it consumes to ZeroMQ.
 
-    A single configuration key is used from fedora-messaging's "consumer_config"
+    A configuration key is used from fedora-messaging's "consumer_config"
     key, "publish_endpoint", which should be a ZeroMQ socket. For example, to
     bind to just the IPv4 local host interface, place the following in your
     fedora-messaging configuration file::
@@ -92,6 +92,13 @@ class AmqpToZmq(object):
         publish_endpoint = "tcp://127.0.0.1:9940"
 
     The default is to bind to all available interfaces on port 9940.
+
+    If you need to connect to a remote relay to publish the ZeroMQ messages,
+    set the "remote_publish" configuration value to ``true``. For example::
+
+        [consumer_config]
+        publish_endpoint = "tcp://gateway.example.com:9941"
+        remote_publish = true
 
     Additionally, this consumer can optionally sign messages if they don't have
     a signature already. This happens if the published message originates from
@@ -111,8 +118,12 @@ class AmqpToZmq(object):
 
         context = zmq.Context.instance()
         self.pub_socket = context.socket(zmq.PUB)
-        self.pub_socket.bind(self.publish_endpoint)
-        _log.info("Bound to %s for ZeroMQ publication", self.publish_endpoint)
+        if fm_config.conf["consumer_config"].get("remote_publish", False):
+            self.pub_socket.connect(self.publish_endpoint)
+            _log.info("Connected to %s for ZeroMQ publication", self.publish_endpoint)
+        else:
+            self.pub_socket.bind(self.publish_endpoint)
+            _log.info("Bound to %s for ZeroMQ publication", self.publish_endpoint)
         self._message_counter = 0
 
     def __call__(self, message):

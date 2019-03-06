@@ -112,3 +112,20 @@ class AmqpToZmqTests(unittest.TestCase):
             sign_call_kw = mock_sign.call_args_list[-1][1]
             self.assertIn("certname", sign_call_kw)
             self.assertEqual(sign_call_kw["certname"], "fedmsg")
+
+    @mock.patch("fedmsg_migration_tools.bridges.zmq.Context", mock.Mock())
+    def test_local_or_remote_publish(self):
+        """Assert the proper method is used for local or remote endpoints."""
+        # Local
+        zmq_bridge = bridges.AmqpToZmq()
+        zmq_bridge.pub_socket.bind.assert_called_with("tcp://*:9940")
+        # Remote
+        conf = {
+            "consumer_config": {
+                "publish_endpoint": "dummy_endpoint",
+                "remote_publish": True,
+            }
+        }
+        with mock.patch.dict("fedmsg_migration_tools.bridges.fm_config.conf", conf):
+            zmq_bridge = bridges.AmqpToZmq()
+        zmq_bridge.pub_socket.connect.assert_called_with("dummy_endpoint")
