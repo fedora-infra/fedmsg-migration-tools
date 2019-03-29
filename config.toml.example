@@ -48,6 +48,10 @@ routing_key = "#"
 version = 1
 disable_existing_loggers = true
 
+[log_config.filters.ratelimit]
+"()" = "fedmsg_migration_tools.config.RateLimiter"
+rate = 60
+
 [log_config.formatters.simple]
 format = "[%(name)s %(levelname)s] %(message)s"
 
@@ -55,6 +59,15 @@ format = "[%(name)s %(levelname)s] %(message)s"
 class = "logging.StreamHandler"
 formatter = "simple"
 stream = "ext://sys.stdout"
+
+[log_config.handlers.email]
+class = "logging.handlers.SMTPHandler"
+formatter = "simple"
+filters = ["ratelimit"]
+mailhost = "localhost"
+fromaddr = "fedmsg-migration-tools@example.com"
+toaddrs = ["admin@example.com"]
+subject = "ERROR: fedmsg-migration-tools is in trouble"
 
 [log_config.loggers.fedmsg_migration_tools]
 level = "INFO"
