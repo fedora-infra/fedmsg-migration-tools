@@ -64,7 +64,6 @@ class AmqpConsumer(FedoraMessagingService):
 
 
 class ZmqConsumer(service.Service):
-
     def __init__(self, store, zmq_endpoints):
         self.store = store
         self.endpoints = zmq_endpoints
