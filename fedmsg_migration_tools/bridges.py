@@ -57,6 +57,24 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
 
         body = json.loads(body)
 
+        try:
+            if body["username"] == "amqp-bridge":
+                _log.info(
+                    "Dropping message %s as it's from the AMQP->ZMQ bridge",
+                    body["msg_id"],
+                )
+                continue
+        except KeyError:
+            # Some messages aren't coming from fedmsg so they lack the username key
+            if "msg_id" in body:
+                _log.info(
+                    'Publishing %s despite it missing the normal "username" key',
+                    body["msg_id"],
+                )
+            else:
+                _log.error("Message is missing a message id, dropping it")
+                continue
+
         if fedmsg_config.conf["validate_signatures"] and not fedmsg.crypto.validate(
             body, **fedmsg_config.conf
         ):
