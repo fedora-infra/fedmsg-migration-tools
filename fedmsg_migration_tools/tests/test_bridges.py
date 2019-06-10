@@ -20,11 +20,68 @@ import unittest
 import json
 import socket
 
-from fedora_messaging import message
+from fedora_messaging import message, testing as fml_testing
 import mock
 
 from fedmsg_migration_tools import bridges
 from fedmsg_migration_tools.tests import FIXTURES_DIR
+
+
+@mock.patch.dict(
+    "fedmsg_migration_tools.bridges.fedmsg_config.conf", {"validate_signatures": False}
+)
+class ConvertAndMaybePublishTests(unittest.TestCase):
+    def test_msg_becomes_body(self):
+        """Assert the "msg" key of a fedmsg is the fedora-messaging body."""
+        expected = message.Message(body={"hello": "world"}, topic="hi")
+        zmq_message = b'{"msg": {"hello": "world"}, "msg_id": "abc123"}'
+
+        with fml_testing.mock_sends(expected):
+            bridges._convert_and_maybe_publish(b"hi", zmq_message, "amq.topic")
+
+    def test_no_msg(self):
+        """Assert no message is published if there's no "msg" key."""
+        with fml_testing.mock_sends():
+            bridges._convert_and_maybe_publish(
+                b"hi", b'{"username": "test", "msg_id": "abc"}', "amq.topic"
+            )
+
+    def test_no_msg_id(self):
+        """Assert no message is published if there's no "msg_id" key."""
+        with fml_testing.mock_sends():
+            bridges._convert_and_maybe_publish(b"hi", b'{"msg": "test"}', "amq.topic")
+
+    def test_drop_bridge_messages(self):
+        """Assert ZMQ messages with the amqp-bridge username are ignored."""
+        zmq_message = b'{"username": "amqp-bridge", "msg": {"hello": "world"}, "msg_id": "abc123"}'
+
+        with fml_testing.mock_sends():
+            bridges._convert_and_maybe_publish(b"hi", zmq_message, "amq.topic")
+
+    def test_blank_headers(self):
+        """Assert ZMQ messages with blank headers still get the defaults."""
+        expected = message.Message(body={"hello": "world"}, topic="hi")
+        zmq_message = b'{"headers": {}, "msg": {"hello": "world"}, "msg_id": "abc123"}'
+
+        with fml_testing.mock_sends(expected):
+            bridges._convert_and_maybe_publish(b"hi", zmq_message, "amq.topic")
+
+    def test_headers(self):
+        """Assert ZMQ messages with headers are included."""
+        expected = message.Message(
+            headers={"oh": "hi"}, body={"hello": "world"}, topic="hi"
+        )
+        zmq_message = (
+            b'{"headers": {"oh": "hi"}, "msg": {"hello": "world"}, "msg_id": "abc123"}'
+        )
+
+        with fml_testing.mock_sends(expected):
+            bridges._convert_and_maybe_publish(b"hi", zmq_message, "amq.topic")
+
+    def test_invalid_json(self):
+        """Assert invalid json doesn't crash the maybe_publisher."""
+        with fml_testing.mock_sends():
+            bridges._convert_and_maybe_publish(b"hi", "{", "amq.topic")
 
 
 @mock.patch("fedmsg_migration_tools.bridges.time.time", mock.Mock(return_value=101))
