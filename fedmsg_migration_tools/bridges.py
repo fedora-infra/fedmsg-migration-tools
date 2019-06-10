@@ -47,7 +47,7 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
 
     while True:
         try:
-            topic, body = sub_socket.recv_multipart()
+            topic, zmq_message = sub_socket.recv_multipart()
         except zmq.ZMQError as e:
             _log.error("Failed to receive message from subscription socket: %s", e)
             continue
@@ -55,46 +55,77 @@ def zmq_to_amqp(exchange, zmq_endpoints, topics):
             _log.error("Unable to unpack message from pair socket: %s", e)
             continue
 
-        body = json.loads(body)
+        _convert_and_maybe_publish(topic, zmq_message, exchange)
 
-        try:
-            if body["username"] == "amqp-bridge":
-                _log.info(
-                    "Dropping message %s as it's from the AMQP->ZMQ bridge",
-                    body["msg_id"],
-                )
-                continue
-        except KeyError:
-            # Some messages aren't coming from fedmsg so they lack the username key
-            if "msg_id" in body:
-                _log.info(
-                    'Publishing %s despite it missing the normal "username" key',
-                    body["msg_id"],
-                )
-            else:
-                _log.error("Message is missing a message id, dropping it")
-                continue
 
-        if fedmsg_config.conf["validate_signatures"] and not fedmsg.crypto.validate(
-            body, **fedmsg_config.conf
-        ):
-            _log.error("Message on topic %r failed validation", topic)
-            continue
+def _convert_and_maybe_publish(topic, zmq_message, exchange):
+    """
+    Try to convert a fedmsg to a valid fedora-messaging AMQP message and
+    publish it.  If something is wrong, no exception will be raised and the
+    message will just be dropped.
 
-        message = Message(body=body, topic=topic.decode("utf-8"))
-        message.id = body["msg_id"]
+    Args:
+        topic (bytes): The ZeroMQ message topic. Assumed to be UTF-8 encoded.
+        zmq_message (bytes): The ZeroMQ message. Assumed to be UTF-8 encoded.
+        exchange (str): The name of the AMQP exchange to publish to.
+    """
+    try:
+        zmq_message = json.loads(zmq_message)
+    except (ValueError, TypeError):
+        _log.error("Failed to parse %r as a json message", repr(zmq_message))
+        return
 
-        _log.debug("Publishing %r to %r", body, topic)
-        try:
-            api.publish(message, exchange=exchange)
-        except Exception as e:
-            _log.exception(
-                'Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
-                body,
-                exchange,
-                topic,
-                e,
+    try:
+        if zmq_message["username"] == "amqp-bridge":
+            _log.info(
+                "Dropping message %s as it's from the AMQP->ZMQ bridge",
+                zmq_message["msg_id"],
             )
+            return
+    except KeyError:
+        # Some messages aren't coming from fedmsg so they lack the username key
+        if "msg_id" in zmq_message:
+            _log.info(
+                'Publishing %s despite it missing the normal "username" key',
+                zmq_message["msg_id"],
+            )
+        else:
+            _log.error("Message is missing a message id, dropping it")
+            return
+
+    if fedmsg_config.conf["validate_signatures"] and not fedmsg.crypto.validate(
+        zmq_message, **fedmsg_config.conf
+    ):
+        _log.error("Message on topic %r failed validation", topic)
+        return
+
+    try:
+        body = zmq_message["msg"]
+    except KeyError:
+        _log.error(
+            "The zeromq message %r didn't have a 'msg' key; dropping", zmq_message
+        )
+        return
+
+    try:
+        headers = zmq_message["headers"]
+    except KeyError:
+        headers = None
+
+    message = Message(body=body, headers=headers, topic=topic.decode("utf-8"))
+    message.id = zmq_message["msg_id"]
+
+    _log.debug("Publishing %r to %r", body, topic)
+    try:
+        api.publish(message, exchange=exchange)
+    except Exception as e:
+        _log.exception(
+            'Publishing "%r" to exchange "%r" on topic "%r" failed (%r)',
+            body,
+            exchange,
+            topic,
+            e,
+        )
 
 
 class AmqpToZmq(object):
