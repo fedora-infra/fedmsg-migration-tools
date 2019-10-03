@@ -55,8 +55,17 @@ class AmqpConsumer(FedoraMessagingService):
             system=self.name,
             logLevel=logging.DEBUG,
         )
-        msg_id = message.id
-        msg_id = YEAR_PREFIX_RE.sub("", msg_id)
+        try:
+            msg_id = message.id
+            msg_id = YEAR_PREFIX_RE.sub("", msg_id)
+        except (AttributeError, TypeError):
+            log.msg(
+                "Received a message without a message_id property from AMQP on topic {topic}".format(
+                    topic=message.topic
+                ),
+                logLevel=logging.INFO,
+            )
+            return
         self.store[msg_id] = (
             datetime.utcnow(),
             {"msg_id": message.id, "topic": message.topic, "msg": str(message)},

@@ -48,6 +48,16 @@ class AmqpConsumerTestCase(unittest.TestCase):
         self.assertEqual(self.store["dummy-msgid"][1]["msg_id"], msg.id)
         self.assertEqual(self.store["dummy-msgid"][1]["topic"], "dummy.topic")
 
+    def test_without_message_id(self):
+        """Assert it handles messages without a message_id."""
+        msg = Message(topic="dummy.topic", body={"body": "dummy-body"})
+        msg.id = None
+        try:
+            self.consumer.on_message(msg)
+        except (TypeError, AttributeError) as e:
+            self.fail(e)
+        self.assertEqual(len(self.store), 0)
+
 
 class ZmqConsumerTestCase(unittest.TestCase):
     def setUp(self):
