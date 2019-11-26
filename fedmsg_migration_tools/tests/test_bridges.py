@@ -186,3 +186,17 @@ class AmqpToZmqTests(unittest.TestCase):
         with mock.patch.dict("fedmsg_migration_tools.bridges.fm_config.conf", conf):
             zmq_bridge = bridges.AmqpToZmq()
         zmq_bridge.pub_socket.connect.assert_called_with("dummy_endpoint")
+
+    @mock.patch("fedmsg_migration_tools.bridges.zmq.Context", mock.Mock())
+    def test_double_year_prefix(self):
+        """Assert that the year prefix is not added if it is already present."""
+        year = datetime.datetime.utcnow().year
+        zmq_bridge = bridges.AmqpToZmq()
+        msg = message.Message(topic="my.topic", body={"my": "message"})
+        # Add a year prefix to the original message.
+        msg.id = "{}-{}".format(year, msg.id)
+        zmq_bridge(msg)
+        zmq_bridge.pub_socket.send_multipart.assert_called_once()
+        body = zmq_bridge.pub_socket.send_multipart.call_args_list[-1][0][0][1]
+        # No year prefix should been added.
+        assert json.loads(body.decode("utf-8"))["msg_id"] == msg.id

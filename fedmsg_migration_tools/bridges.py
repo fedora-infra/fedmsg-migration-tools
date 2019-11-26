@@ -18,6 +18,7 @@
 import datetime
 import json
 import logging
+import re
 import socket
 import time
 
@@ -29,6 +30,9 @@ import fedmsg
 import zmq
 
 _log = logging.getLogger(__name__)
+
+
+YEAR_PREFIX_RE = re.compile("^[0-9]{4}-")
 
 
 def zmq_to_amqp(exchange, zmq_endpoints, topics):
@@ -186,13 +190,14 @@ class AmqpToZmq(object):
         # wrap messages bridged back into ZMQ with it so old consumers don't
         # explode with KeyErrors.
         self._message_counter += 1
+        msg_id = message.id
+        if not YEAR_PREFIX_RE.match(msg_id[:5]):
+            msg_id = "{}-{}".format(datetime.datetime.utcnow().year, msg_id)
         wrapped_body = {
             "topic": message.topic,
             "msg": message._body,
             "timestamp": int(time.time()),
-            "msg_id": "{y}-{id}".format(
-                y=datetime.datetime.utcnow().year, id=message.id
-            ),
+            "msg_id": msg_id,
             "i": self._message_counter,
             "username": "amqp-bridge",
         }
