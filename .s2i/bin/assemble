@@ -6,6 +6,9 @@
 # Execute the default S2I script
 /usr/libexec/s2i/assemble
 
+# Add some optional dependencies
+pip install anitya-schema
+
 # Setup some symlinks
 mkdir -p /opt/app-root/etc/pki/fedmsg
 ln -sf /etc/pki/fedmsg/crt/fedmsg-fedmsg-migration-tools.crt /opt/app-root/etc/pki/fedmsg/fedmsg-migration-tools.crt
