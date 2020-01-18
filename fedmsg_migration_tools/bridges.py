@@ -81,7 +81,7 @@ def _convert_and_maybe_publish(topic, zmq_message, exchange):
 
     try:
         if zmq_message["username"] == "amqp-bridge":
-            _log.info(
+            _log.debug(
                 "Dropping message %s as it's from the AMQP->ZMQ bridge",
                 zmq_message["msg_id"],
             )
