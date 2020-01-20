@@ -7,7 +7,7 @@
 /usr/libexec/s2i/assemble
 
 # Add some optional dependencies
-pip install anitya-schema
+pip install anitya-schema copr-messaging
 
 # Setup some symlinks
 mkdir -p /opt/app-root/etc/pki/fedmsg
