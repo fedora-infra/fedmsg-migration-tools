@@ -65,6 +65,14 @@ class AmqpConsumer(FedoraMessagingService):
                 logLevel=logging.INFO,
             )
             return
+        if msg_id in self.store:
+            log.msg(
+                "Received a duplicate message with id {msg_id} on topic {topic}".format(
+                    msg_id=msg_id, topic=message.topic
+                ),
+                logLevel=logging.INFO,
+            )
+            return
         self.store[msg_id] = (
             datetime.utcnow(),
             {"msg_id": message.id, "topic": message.topic, "msg": str(message)},
@@ -152,7 +160,7 @@ class Comparator(service.Service):
             if msg_id in self.zmq_store:
                 log.msg(
                     (
-                        "Successfully received message (id {msgid}) via " "ZMQ and AMQP"
+                        "Successfully received message (id {msgid}) via ZMQ and AMQP"
                     ).format(msgid=msg_id)
                 )
                 del self.amqp_store[msg_id]
