@@ -67,7 +67,7 @@ class AmqpConsumer(FedoraMessagingService):
             return
         if msg_id in self.store:
             log.msg(
-                "Received a duplicate message with id {msg_id} on topic {topic}".format(
+                "Received a duplicate AMQP message with id {msg_id} on topic {topic}".format(
                     msg_id=msg_id, topic=message.topic
                 ),
                 logLevel=logging.INFO,
@@ -121,6 +121,14 @@ class ZmqConsumer(service.Service):
             logLevel=logging.DEBUG,
         )
         msg_id = YEAR_PREFIX_RE.sub("", msg_id)
+        if msg_id in self.store:
+            log.msg(
+                "Received a duplicate ZeroMQ message with id {msg_id} on topic {topic}".format(
+                    msg_id=msg_id, topic=topic
+                ),
+                logLevel=logging.INFO,
+            )
+            return
         self.store[msg_id] = (datetime.utcnow(), msg)
 
     def stopService(self):
