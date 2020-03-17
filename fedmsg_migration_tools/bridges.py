@@ -195,13 +195,13 @@ class AmqpToZmq(object):
             msg_id = "{}-{}".format(datetime.datetime.utcnow().year, msg_id)
         wrapped_body = {
             "topic": message.topic,
-            "msg": message._body,
+            "msg": message.body,
             "timestamp": int(time.time()),
             "msg_id": msg_id,
             "i": self._message_counter,
             "username": "amqp-bridge",
         }
-        message._body = wrapped_body
+        message.body = wrapped_body
 
         if fedmsg_config.conf["sign_messages"]:
             # Find the cert name
@@ -218,7 +218,7 @@ class AmqpToZmq(object):
                 ]
             # Sign the message
             try:
-                message._body = fedmsg.crypto.sign(message._body, **fedmsg_config.conf)
+                message.body = fedmsg.crypto.sign(message.body, **fedmsg_config.conf)
             except ValueError as e:
                 _log.error("Unable to sign message with fedmsg: %s", str(e))
                 raise HaltConsumer(exit_code=1, reason=e)
@@ -231,7 +231,7 @@ class AmqpToZmq(object):
             )
             zmq_message = [
                 message.topic.encode("utf-8"),
-                json.dumps(message._body).encode("utf-8"),
+                json.dumps(message.body).encode("utf-8"),
             ]
             self.pub_socket.send_multipart(zmq_message)
         except zmq.ZMQError as e:
