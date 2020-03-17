@@ -20,9 +20,6 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from fedmsg_migration_tools import config
-from fedora_messaging.twisted.service import FedoraMessagingService
-
 from twisted.internet import reactor, task
 from twisted.application import service
 
@@ -30,22 +27,31 @@ from twisted.application import service
 from twisted.python import log
 from txzmq import ZmqEndpoint, ZmqEndpointType, ZmqFactory, ZmqSubConnection
 
+from fedora_messaging import config as fm_config
+from fedora_messaging.twisted.service import FedoraMessagingServiceV2
+
+from fedmsg_migration_tools import config
+
 
 YEAR_PREFIX_RE = re.compile("^[0-9]{4}-")
 
 
-class AmqpConsumer(FedoraMessagingService):
+class AmqpConsumer(FedoraMessagingServiceV2):
 
     name = "AmqpConsumer"
 
     def __init__(self, store):
         self.store = store
-        kwargs = config.conf["verify_missing"].copy()
-        kwargs["queues"] = [kwargs.pop("queue")]
-        kwargs["consumers"] = {
-            config.conf["verify_missing"]["queue"]["queue"]: self.on_message
-        }
-        FedoraMessagingService.__init__(self, **kwargs)
+        FedoraMessagingServiceV2.__init__(self, fm_config.conf["amqp_url"])
+
+    def startService(self):
+        FedoraMessagingServiceV2.startService(self)
+        bindings = config.conf["verify_missing"]["bindings"]
+        queue = config.conf["verify_missing"]["queue"]
+        queue_name = queue.pop("queue")
+        self._service.factory.consume(
+            self.on_message, bindings=bindings, queues={queue_name: queue}
+        )
 
     def on_message(self, message):
         log.msg(

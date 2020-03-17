@@ -48,12 +48,12 @@ DEFAULTS = dict(
             {
                 "exchange": "zmq.topic",
                 "queue": "amqp_bridge_verify_missing",
-                "routing_key": "#",
+                "routing_keys": ["#"],
             },
             {
                 "exchange": "amq.topic",
                 "queue": "amqp_bridge_verify_missing",
-                "routing_key": "#",
+                "routing_keys": ["#"],
             },
         ],
     },

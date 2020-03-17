@@ -58,6 +58,34 @@ class AmqpConsumerTestCase(unittest.TestCase):
             self.fail(e)
         self.assertEqual(len(self.store), 0)
 
+    def test_startService(self):
+        with unittest.mock.patch.object(
+            self.consumer._service.factory, "consume"
+        ) as consume:
+            self.consumer.startService()
+        consume.assert_called_with(
+            self.consumer.on_message,
+            bindings=[
+                {
+                    "exchange": "zmq.topic",
+                    "queue": "amqp_bridge_verify_missing",
+                    "routing_keys": ["#"],
+                },
+                {
+                    "exchange": "amq.topic",
+                    "queue": "amqp_bridge_verify_missing",
+                    "routing_keys": ["#"],
+                },
+            ],
+            queues={
+                "amqp_bridge_verify_missing": {
+                    "durable": False,
+                    "auto_delete": True,
+                    "arguments": {"x-message-ttl": 60000},
+                }
+            },
+        )
+
 
 class ZmqConsumerTestCase(unittest.TestCase):
     def setUp(self):
