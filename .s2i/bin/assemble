@@ -10,7 +10,7 @@
 pip install anitya-schema copr-messaging
 # The bodhi modules can't be installed from PyPI at the moment
 # https://github.com/fedora-infra/bodhi/issues/3919
-dnf install -y python3-bodhi-messages
+yum install -y python3-bodhi-messages
 
 # Setup some symlinks
 mkdir -p /opt/app-root/etc/pki/fedmsg
