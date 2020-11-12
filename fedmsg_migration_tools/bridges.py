@@ -191,6 +191,9 @@ class AmqpToZmq(object):
         # explode with KeyErrors.
         self._message_counter += 1
         msg_id = message.id
+        if msg_id is None:
+            _log.error("Message is missing a message id, dropping it")
+            return
         if not YEAR_PREFIX_RE.match(msg_id[:5]):
             msg_id = "{}-{}".format(datetime.datetime.utcnow().year, msg_id)
         wrapped_body = {
