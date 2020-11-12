@@ -200,3 +200,15 @@ class AmqpToZmqTests(unittest.TestCase):
         body = zmq_bridge.pub_socket.send_multipart.call_args_list[-1][0][0][1]
         # No year prefix should been added.
         assert json.loads(body.decode("utf-8"))["msg_id"] == msg.id
+
+    @mock.patch("fedmsg_migration_tools.bridges.zmq.Context", mock.Mock())
+    def test_without_message_id(self):
+        """Assert it handles messages without a message_id."""
+        zmq_bridge = bridges.AmqpToZmq()
+        msg = message.Message(topic="my.topic", body={"my": "message"})
+        msg.id = None
+        try:
+            zmq_bridge(msg)
+        except (TypeError, AttributeError) as e:
+            self.fail(e)
+        zmq_bridge.pub_socket.send_multipart.assert_not_called()
